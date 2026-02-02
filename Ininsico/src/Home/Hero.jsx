@@ -1,7 +1,7 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, Suspense } from 'react'
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Environment, OrbitControls, useGLTF, Float } from '@react-three/drei'
+import { Environment, OrbitControls, useGLTF, Float, Sphere, Text, Center, useTexture, Loader } from '@react-three/drei'
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import './Hero.css';
@@ -10,17 +10,84 @@ import { useNavigate } from 'react-router-dom';
 
 gsap.registerPlugin(ScrollTrigger);
 
+// Preload the texture to avoid pop-in
+// Preload the texture to avoid pop-in
+useTexture.preload('/Ininsicologo.png')
+
+const TexturedGlobe = () => {
+    const texture = useTexture('/Ininsicologo.png')
+    return (
+        <Float speed={2} rotationIntensity={0.2} floatIntensity={0.5}>
+            <Sphere args={[1.5, 32, 32]} rotation={[0, 4.7, 0]}>
+                <meshStandardMaterial
+                    map={texture}
+                    color="#ffffff"
+                    roughness={0.5}
+                    metalness={0}
+                />
+            </Sphere>
+        </Float>
+    )
+}
+
+const ScrollScene = () => {
+    const globeRef = useRef()
+
+    useFrame(() => {
+        if (globeRef.current) {
+            const scrollY = window.scrollY
+            const height = window.innerHeight
+            // progress: 0 at top, 1 at end of first section
+            const progress = Math.min(scrollY / height, 1)
+
+            // Move to right (x: 0 -> 4)
+            // You can adjust the easing or exact value
+            globeRef.current.position.x = progress * 4
+        }
+    })
+
+    return (
+        <group ref={globeRef}>
+            <TexturedGlobe />
+        </group>
+    )
+}
+
 const LuxuryAgencyWebsite = () => {
     return (
         <div className="relative">
-            {/* <Header /> Replaced by global Navbar */}
-            <Hero />
-            <Features />
-            <ShowcaseDemo />
-            <Testimonials />
-            <CaseStudies />
-            <EliteClients />
-            <EliteFooter />
+            {/* Global Fixed 3D Background */}
+            <div className="fixed inset-0 pointer-events-none z-0 bg-white">
+                <Canvas camera={{ position: [0, 0, 8], fov: 50 }}>
+                    <ambientLight intensity={2} />
+                    <spotLight position={[10, 10, 10]} intensity={2} angle={0.2} penumbra={1} />
+                    <pointLight position={[-10, -10, -10]} intensity={1.5} color="#ffd1d1" />
+
+                    <Suspense fallback={null}>
+                        <ScrollScene />
+                    </Suspense>
+                </Canvas>
+                <Loader
+                    initialState={(active) => active}
+                    dataInterpolation={(p) => `Loading ${p.toFixed(0)}%`}
+                    containerStyles={{ background: '#ffffff' }}
+                    innerStyles={{ border: '1px solid #c4302b' }}
+                    barStyles={{ background: '#c4302b' }}
+                    dataStyles={{ color: '#000000', fontSize: '1rem', fontFamily: 'monospace' }}
+                />
+            </div>
+
+            {/* Content Sections (Transparent Backgrounds) */}
+            <div className="relative z-10">
+                {/* <Header /> Replaced by global Navbar */}
+                <Hero />
+                <Features />
+                <ShowcaseDemo />
+                <Testimonials />
+                <CaseStudies />
+                <EliteClients />
+                <EliteFooter />
+            </div>
         </div>
     )
 }
@@ -996,170 +1063,34 @@ const Header = () => {
     );
 };
 
+
+
 const Hero = () => {
-    const containerRef = useRef()
-    const { scrollYProgress } = useScroll({ target: containerRef })
-    const yPos = useTransform(scrollYProgress, [0, 1], [0, -300])
-    const [currentSubtitle, setCurrentSubtitle] = useState(0)
-
-    // Premium rotating subtitles
-    const subtitles = [
-        "We craft digital experiences that redefine industry standards",
-        "Bespoke solutions for visionary brands",
-        "Where cutting-edge technology meets flawless execution",
-        "Elevating your digital presence to unprecedented heights"
-    ]
-
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setCurrentSubtitle((prev) => (prev + 1) % subtitles.length)
-        }, 3500)
-        return () => clearInterval(interval)
-    }, [])
-
-    // **PREMIUM 3D TORUS KNOT (GLASS/METAL)**
-    const PremiumMesh = () => {
-        const meshRef = useRef()
-        useFrame(() => {
-            meshRef.current.rotation.x += 0.005
-            meshRef.current.rotation.y += 0.01
-        })
-        return (
-            <mesh ref={meshRef}>
-                <torusKnotGeometry args={[1, 0.4, 256, 32]} />
-                <meshPhysicalMaterial
-                    color="#ffffff"
-                    metalness={1}
-                    roughness={0.1}
-                    clearcoat={1}
-                    transmission={0.9}
-                    ior={1.74}
-                    envMapIntensity={2}
-                />
-            </mesh>
-        )
-    }
-
     return (
-        <section ref={containerRef} className="relative bg-gradient-to-b from-gray-950 to-black overflow-hidden h-[150vh]">
-            {/* Animated floating lights */}
-            <motion.div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-1/4 left-1/4 w-80 h-80 rounded-full bg-blue-900/10 blur-[100px]"></div>
-                <div className="absolute bottom-1/3 right-1/4 w-80 h-80 rounded-full bg-purple-900/10 blur-[100px]"></div>
-            </motion.div>
-
-            <div className="container mx-auto px-6 h-screen flex items-center relative z-10">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 w-full items-center">
-                    {/* Text Content */}
-                    <motion.div style={{ y: yPos }} className="flex flex-col justify-center">
-                        <motion.h1
-                            initial={{ opacity: 0, y: 40 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.8, delay: 0.2 }}
-                            className="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight mb-8 text-white"
-                        >
-                            <motion.span
-                                className="block"
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.6, delay: 0.3 }}
-                            >
-                                REDEFINE
-                            </motion.span>
-                            <motion.span
-                                className="block text-gray-400"
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.6, delay: 0.4 }}
-                            >
-                                DIGITAL
-                            </motion.span>
-                            <motion.span
-                                className="block"
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.6, delay: 0.5 }}
-                            >
-                                EXCELLENCE
-                            </motion.span>
-                        </motion.h1>
-
-                        {/* Subtitle carousel */}
-                        <div className="h-20 mb-12 relative overflow-hidden">
-                            <AnimatePresence mode="wait">
-                                <motion.p
-                                    key={currentSubtitle}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -20 }}
-                                    transition={{ duration: 0.5 }}
-                                    className="text-xl text-gray-400 max-w-lg absolute"
-                                >
-                                    {subtitles[currentSubtitle]}
-                                </motion.p>
-                            </AnimatePresence>
-                        </div>
-
-                        {/* Buttons */}
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.8, delay: 0.6 }}
-                            className="flex flex-col sm:flex-row gap-4"
-                        >
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="px-8 py-4 bg-white text-black text-sm uppercase font-bold rounded-full"
-                            >
-                                View Work →
-                            </motion.button>
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="px-8 py-4 border border-white text-white text-sm uppercase font-bold rounded-full"
-                            >
-                                Our Process ↗
-                            </motion.button>
-                        </motion.div>
-                    </motion.div>
-
-                    {/* 3D Model */}
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 1, delay: 0.4 }}
-                        className="h-[500px] md:h-[600px] w-full relative"
-                    >
-                        <Canvas>
-                            <ambientLight intensity={0.5} />
-                            <directionalLight position={[10, 10, 5]} intensity={1} />
-                            <Environment preset="studio" />
-                            <OrbitControls
-                                enableZoom={false}
-                                enablePan={false}
-                                autoRotate
-                                autoRotateSpeed={2}
-                            />
-                            <PremiumMesh />
-                        </Canvas>
-                    </motion.div>
-                </div>
+        <section className="relative w-full h-screen bg-transparent overflow-hidden">
+            {/* Static Background Text "Wire Shark" Style (Outline) */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                <h1
+                    className="text-[25vw] font-bold text-transparent tracking-tighter select-none"
+                    style={{ WebkitTextStroke: '2px #1a1a1a' }}
+                >
+                    ININSICO
+                </h1>
             </div>
 
-            {/* Scroll indicator */}
+            {/* Scroll Indicator (Dark/Red) */}
             <motion.div
-                className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-white"
+                className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-richred-700 pointer-events-none z-20"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 1.5 }}
+                transition={{ delay: 1 }}
             >
                 <motion.div
                     animate={{ y: [0, 10, 0] }}
                     transition={{ duration: 2, repeat: Infinity }}
                     className="flex flex-col items-center"
                 >
-                    <span className="text-xs mb-1">SCROLL</span>
+                    <span className="text-xs mb-1 font-bold tracking-widest opacity-80">SCROLL</span>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M7 10L12 15L17 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -1232,7 +1163,7 @@ const Features = () => {
     return (
         <section
             ref={containerRef}
-            className="relative py-32 bg-gradient-to-b from-gray-950 to-gray-900 overflow-hidden"
+            className="relative py-32 bg-transparent overflow-hidden"
         >
             {/* **Animated Background Elements** */}
             <motion.div

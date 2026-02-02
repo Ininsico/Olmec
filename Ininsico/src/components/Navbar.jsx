@@ -37,11 +37,13 @@ const Navbar = () => {
                 >
                     {/* Logo */}
                     <Link to="/" className="flex items-center space-x-3 group">
-                        <div className="w-10 h-10 bg-richred-700 rounded-xl flex items-center justify-center group-hover:rotate-6 transition-transform shadow-lg shadow-richred-700/20">
-                            <Activity size={22} className="text-white" />
-                        </div>
+                        <img
+                            src="/Ininsicologo.png"
+                            alt="Ininsico Logo"
+                            className="w-10 h-10 object-contain group-hover:rotate-6 transition-transform"
+                        />
                         <span className="text-2xl font-black tracking-tighter text-slate-900 group-hover:text-richred-700 transition-colors">
-                            SSI
+                            ININSICO
                         </span>
                     </Link>
 

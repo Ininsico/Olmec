@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+body {
+  background-color: #FDFBF7;
+  color: #0f172a;
+  font-family: "Plus Jakarta Sans", sans-serif;
+}
+
+.glass-nav {
+  background-color: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.glass-panel {
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
