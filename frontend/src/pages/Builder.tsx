@@ -1,27 +1,39 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { SceneManager } from '../utils/SceneManager';
 import { AppState } from '../utils/AppState';
-import type { Tool, ViewMode, CameraView, TabType, NotificationType } from '../types/builder.types';
+import { useAppStore } from '../store/useAppStore';
+import type { Tool, ViewMode, CameraView, NotificationType } from '../types/builder.types';
 
 const Builder: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const sceneManagerRef = useRef<SceneManager | null>(null);
     const appStateRef = useRef<AppState | null>(null);
     const animationFrameRef = useRef<number>(0);
+    const statsUpdateRef = useRef<number>(0);
 
-    // UI State
-    const [activeTab, setActiveTab] = useState<TabType>('create');
-    const [activeTool, setActiveTool] = useState<Tool>('select');
-    const [viewMode, setViewMode] = useState<ViewMode>('solid');
-    const [isTimelineVisible, setIsTimelineVisible] = useState(false);
-    const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
-    const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
-    const [objectCount, setObjectCount] = useState(0);
-    const [triangleCount, setTriangleCount] = useState(0);
-    const [vertexCount, setVertexCount] = useState(0);
-    const [fps, setFps] = useState(60);
+    // Zustand Store
+    const activeTab = useAppStore((state) => state.activeTab);
+    const activeTool = useAppStore((state) => state.activeTool);
+    const viewMode = useAppStore((state) => state.viewMode);
+    const isTimelineVisible = useAppStore((state) => state.isTimelineVisible);
+    const isLeftPanelCollapsed = useAppStore((state) => state.isLeftPanelCollapsed);
+    const objectCount = useAppStore((state) => state.sceneObjects.length);
+
+    // Stats (Managed locally to avoid store overhead on every frame, updated throttled)
+    const [stats, setStats] = useState({ triangles: 0, vertices: 0, fps: 0 });
+
     const [statusMessage, setStatusMessage] = useState('Ready');
     const [notification, setNotification] = useState<{ type: NotificationType; message: string } | null>(null);
+
+    // Actions
+    const {
+        setActiveTab,
+        setTool,
+        setViewMode: setStoreViewMode,
+        toggleTimeline,
+        toggleLeftPanel,
+        addObject: addStoreObject
+    } = useAppStore.getState(); // Using getState() for actions to avoid re-renders if actions were to change (they don't usually)
 
     // Initialize Three.js scene
     useEffect(() => {
@@ -34,31 +46,72 @@ const Builder: React.FC = () => {
         sceneManagerRef.current = sceneManager;
         appStateRef.current = appState;
 
+        // Handle canvas resize automatically
+        const resizeObserver = new ResizeObserver(() => {
+            sceneManager.handleResize();
+        });
+
+        if (canvasRef.current.parentElement) {
+            resizeObserver.observe(canvasRef.current.parentElement);
+        }
+
         // Animation loop
-        const animate = () => {
+        const animate = (time: number) => {
+            if (!sceneManagerRef.current) return;
+
             sceneManager.render();
             appState.updateAnimation();
             appState.updatePerformance();
 
-            // Update UI stats
-            setObjectCount(appState.sceneObjects.length);
-            setTriangleCount(sceneManager.stats.triangles);
-            setVertexCount(sceneManager.stats.vertices);
-            setFps(appState.performance.fps);
+            // Throttle stats updates to ~2 times per second to prevent React rendering bottlenecks
+            if (time - statsUpdateRef.current > 500) {
+                setStats({
+                    triangles: sceneManager.stats.triangles,
+                    vertices: sceneManager.stats.vertices,
+                    fps: appState.performance.fps
+                });
+                statsUpdateRef.current = time;
+            }
 
             animationFrameRef.current = requestAnimationFrame(animate);
         };
 
-        animate();
+        animationFrameRef.current = requestAnimationFrame(animate);
 
         // Cleanup
         return () => {
             if (animationFrameRef.current) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
+            resizeObserver.disconnect();
             sceneManager.dispose();
         };
     }, []);
+
+    // Sync Zustand active tool with SceneManager
+    useEffect(() => {
+        if (sceneManagerRef.current) {
+            const tool = useAppStore.getState().activeTool;
+            switch (tool) {
+                case 'move':
+                    sceneManagerRef.current.setTransformMode('translate');
+                    break;
+                case 'rotate':
+                    sceneManagerRef.current.setTransformMode('rotate');
+                    break;
+                case 'scale':
+                    sceneManagerRef.current.setTransformMode('scale');
+                    break;
+            }
+        }
+    }, [activeTool]);
+
+    // Sync Zustand view mode with SceneManager
+    useEffect(() => {
+        if (sceneManagerRef.current) {
+            sceneManagerRef.current.setViewMode(useAppStore.getState().viewMode);
+        }
+    }, [viewMode]);
 
     // Handle object creation
     const handleCreateShape = (shape: string) => {
@@ -74,38 +127,23 @@ const Builder: React.FC = () => {
         const addedObj = appStateRef.current.addObject(obj);
         sceneManagerRef.current.addObject(addedObj);
 
+        // Update store
+        addStoreObject(obj);
+
         showNotification('success', `${shape} created successfully`);
         setStatusMessage(`Created ${shape}`);
     };
 
     // Handle tool change
     const handleToolChange = (tool: Tool) => {
-        setActiveTool(tool);
-        if (appStateRef.current) {
-            appStateRef.current.activeTool = tool;
-        }
-
-        if (sceneManagerRef.current) {
-            switch (tool) {
-                case 'move':
-                    sceneManagerRef.current.setTransformMode('translate');
-                    break;
-                case 'rotate':
-                    sceneManagerRef.current.setTransformMode('rotate');
-                    break;
-                case 'scale':
-                    sceneManagerRef.current.setTransformMode('scale');
-                    break;
-            }
-        }
+        setTool(tool); // Update Zustand
+        // SceneManager update handled by effect
     };
 
     // Handle view mode change
     const handleViewModeChange = (mode: ViewMode) => {
-        setViewMode(mode);
-        if (sceneManagerRef.current) {
-            sceneManagerRef.current.setViewMode(mode);
-        }
+        setStoreViewMode(mode); // Update Zustand
+        // SceneManager update handled by effect
     };
 
     // Handle camera view change
@@ -134,32 +172,42 @@ const Builder: React.FC = () => {
         }
     };
 
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    };
+
     return (
-        <div className="h-screen flex flex-col bg-[#FDFBF7] text-slate-900">
+        <div className="h-screen flex flex-col bg-black text-white">
             {/* Header */}
-            <header className="h-16 glass-nav border-b border-slate-200 flex items-center px-6 relative z-50">
+            <header className="h-16 glass-nav border-b border-white/10 flex items-center px-6 relative z-50">
                 <div className="text-2xl font-black mr-8 font-serif text-richred">
-                    Olmec Builder
+                    Ininsico Builder
                 </div>
 
                 <nav className="flex space-x-1">
                     {/* File Menu */}
                     <div className="menu-item relative group">
-                        <div className="px-4 py-2 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors">
+                        <div className="px-4 py-2 rounded-lg cursor-pointer bg-white/5 border border-white/10 hover:bg-white/20 transition-all">
                             <span className="text-sm font-medium">File</span>
                         </div>
                         <div className="submenu absolute top-full left-0 mt-2 min-w-[200px] rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 glass-panel shadow-lg">
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer rounded-t-lg hover:bg-slate-100">
+                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer rounded-t-lg hover:bg-white/10">
                                 <i className="fas fa-plus w-4 mr-3"></i>New Project
                             </div>
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer hover:bg-slate-100">
+                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer hover:bg-white/10">
                                 <i className="fas fa-folder-open w-4 mr-3"></i>Open...
                             </div>
-                            <div className="h-px bg-slate-200 mx-2"></div>
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer hover:bg-slate-100">
+                            <div className="h-px bg-white/20 mx-2"></div>
+                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer hover:bg-white/10">
                                 <i className="fas fa-download w-4 mr-3"></i>Import
                             </div>
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer rounded-b-lg hover:bg-slate-100">
+                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer rounded-b-lg hover:bg-white/10">
                                 <i className="fas fa-upload w-4 mr-3"></i>Export
                             </div>
                         </div>
@@ -167,21 +215,21 @@ const Builder: React.FC = () => {
 
                     {/* Edit Menu */}
                     <div className="menu-item relative group">
-                        <div className="px-4 py-2 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors">
+                        <div className="px-4 py-2 rounded-lg cursor-pointer bg-white/5 border border-white/10 hover:bg-white/20 transition-all">
                             <span className="text-sm font-medium">Edit</span>
                         </div>
                         <div className="submenu absolute top-full left-0 mt-2 min-w-[200px] rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 glass-panel shadow-lg">
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer rounded-t-lg hover:bg-slate-100" onClick={handleUndo}>
+                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer rounded-t-lg hover:bg-white/10" onClick={handleUndo}>
                                 <i className="fas fa-undo w-4 mr-3"></i>Undo
                             </div>
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer hover:bg-slate-100" onClick={handleRedo}>
+                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer hover:bg-white/10" onClick={handleRedo}>
                                 <i className="fas fa-redo w-4 mr-3"></i>Redo
                             </div>
-                            <div className="h-px bg-slate-200 mx-2"></div>
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer hover:bg-slate-100">
+                            <div className="h-px bg-white/20 mx-2"></div>
+                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer hover:bg-white/10">
                                 <i className="fas fa-clone w-4 mr-3"></i>Duplicate
                             </div>
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer rounded-b-lg hover:bg-slate-100">
+                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer rounded-b-lg hover:bg-white/10">
                                 <i className="fas fa-trash w-4 mr-3"></i>Delete
                             </div>
                         </div>
@@ -191,16 +239,22 @@ const Builder: React.FC = () => {
                 <div className="ml-auto flex items-center space-x-4">
                     <div className="flex items-center space-x-2">
                         <div className="w-2 h-2 bg-richred rounded-full animate-pulse"></div>
-                        <span className="text-sm text-slate-600 font-mono">ONLINE</span>
+                        <span className="text-sm text-slate-400 font-mono">ONLINE</span>
                     </div>
                     <button className="bg-richred hover:bg-richred-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all">
                         <i className="fas fa-cloud-upload-alt mr-2"></i>Export
                     </button>
                     <button
-                        className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                        onClick={() => setIsTimelineVisible(!isTimelineVisible)}
+                        className="bg-white/10 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                        onClick={toggleTimeline}
                     >
                         <i className="fas fa-film mr-2"></i>Timeline
+                    </button>
+                    <button
+                        className="bg-white/10 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                        onClick={toggleFullscreen}
+                    >
+                        <i className="fas fa-expand mr-2"></i>Fullscreen
                     </button>
                 </div>
             </header>
@@ -208,119 +262,205 @@ const Builder: React.FC = () => {
             {/* Main Container */}
             <div className="flex-1 flex overflow-hidden">
                 {/* Left Sidebar */}
-                <aside className={`${isLeftPanelCollapsed ? 'w-0' : 'w-80'} glass-panel border-r border-slate-200 overflow-y-auto transition-all duration-300 relative`}>
+                <div className="relative h-full">
+                    {/* Toggle Button */}
                     <button
-                        className="absolute right-0 top-1/2 transform translate-x-full -translate-y-1/2 w-6 h-12 glass-panel border border-slate-200 rounded-r-lg flex items-center justify-center hover:bg-slate-100 transition-colors z-10"
-                        onClick={() => setIsLeftPanelCollapsed(!isLeftPanelCollapsed)}
+                        className="absolute -right-6 top-1/2 transform -translate-y-1/2 w-6 h-12 glass-panel border-y border-r border-white/10 rounded-r-lg flex items-center justify-center hover:bg-white/10 transition-colors z-50 text-white"
+                        onClick={toggleLeftPanel}
                     >
                         <i className={`fas fa-chevron-${isLeftPanelCollapsed ? 'right' : 'left'} text-xs`}></i>
                     </button>
 
-                    {!isLeftPanelCollapsed && (
-                        <div className="panel-content h-full">
-                            {/* Tab Navigation */}
-                            <div className="flex border-b border-slate-200">
-                                <button
-                                    className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'create' ? 'bg-slate-100 border-b-2 border-richred text-richred' : 'text-slate-600 hover:bg-slate-50'}`}
-                                    onClick={() => setActiveTab('create')}
-                                >
-                                    Create
-                                </button>
-                                <button
-                                    className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'sculpt' ? 'bg-slate-100 border-b-2 border-richred text-richred' : 'text-slate-600 hover:bg-slate-50'}`}
-                                    onClick={() => setActiveTab('sculpt')}
-                                >
-                                    Sculpt
-                                </button>
-                                <button
-                                    className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'scene' ? 'bg-slate-100 border-b-2 border-richred text-richred' : 'text-slate-600 hover:bg-slate-50'}`}
-                                    onClick={() => setActiveTab('scene')}
-                                >
-                                    Scene
-                                </button>
-                            </div>
+                    <aside className={`${isLeftPanelCollapsed ? 'w-[60px]' : 'w-[280px]'} h-full glass-panel border-r border-white/10 transition-all duration-300 flex overflow-hidden`}>
 
-                            {/* Create Panel */}
-                            {activeTab === 'create' && (
-                                <div className="p-6">
-                                    <div className="mb-4">
-                                        <h3 className="font-semibold text-lg mb-4 flex items-center">
-                                            <i className="fas fa-plus-circle mr-3 text-richred"></i>
-                                            Create Objects
-                                        </h3>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-3">
-                                        {['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'].map((shape) => (
-                                            <div
-                                                key={shape}
-                                                className="glass-panel rounded-lg p-4 cursor-pointer flex flex-col items-center space-y-2 hover:bg-slate-100 transition-all"
-                                                onClick={() => handleCreateShape(shape)}
-                                            >
-                                                <i className={`fas fa-${shape === 'box' ? 'cube' : shape === 'sphere' ? 'globe' : shape === 'cylinder' ? 'database' : shape === 'cone' ? 'concierge-bell' : shape === 'torus' ? 'ring' : 'square'} text-2xl text-richred`}></i>
-                                                <span className="text-xs font-medium capitalize">{shape}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                        {/* Vertical Navigation Rail */}
+                        <div className="w-[60px] flex-shrink-0 border-r border-white/10 flex flex-col items-center py-6 gap-6 bg-white/5 relative z-20">
+                            {[
+                                { id: 'create', icon: 'plus', label: 'Create' },
+                                { id: 'sculpt', icon: 'paint-brush', label: 'Sculpt' },
+                                { id: 'scene', icon: 'layer-group', label: 'Scene' },
+                                { id: 'properties', icon: 'sliders-h', label: 'Props' }
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all relative group ${activeTab === tab.id ? 'bg-richred text-white shadow-lg shadow-richred/20' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}
+                                    onClick={() => setActiveTab(tab.id as any)}
+                                >
+                                    <i className={`fas fa-${tab.icon} text-lg`}></i>
 
-                            {/* Sculpt Panel */}
-                            {activeTab === 'sculpt' && (
-                                <div className="p-6">
-                                    <div className="mb-4">
-                                        <h3 className="font-semibold text-lg mb-4 flex items-center">
-                                            <i className="fas fa-paint-brush mr-3 text-richred"></i>
-                                            Sculpting Tools
-                                        </h3>
+                                    {/* Tooltip */}
+                                    <div className="absolute left-full ml-4 px-2 py-1 bg-black/90 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/10 z-50">
+                                        {tab.label}
                                     </div>
-                                    <div className="grid grid-cols-4 gap-2 mb-4">
-                                        {[
-                                            { tool: 'draw', icon: 'paint-brush' },
-                                            { tool: 'smooth', icon: 'brush' },
-                                            { tool: 'flatten', icon: 'ruler-combined' },
-                                            { tool: 'inflate', icon: 'expand' },
-                                            { tool: 'pinch', icon: 'hand-paper' },
-                                            { tool: 'grab', icon: 'hand-rock' },
-                                            { tool: 'crevice', icon: 'mountain' },
-                                            { tool: 'mask', icon: 'mask' }
-                                        ].map(({ tool, icon }) => (
-                                            <div
-                                                key={tool}
-                                                className="glass-panel rounded-lg p-3 cursor-pointer flex flex-col items-center space-y-1 hover:bg-slate-100 transition-all"
-                                            >
-                                                <i className={`fas fa-${icon} text-lg text-richred`}></i>
-                                                <span className="text-xs capitalize">{tool}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Scene Panel */}
-                            {activeTab === 'scene' && (
-                                <div className="p-6">
-                                    <div className="mb-4">
-                                        <h3 className="font-semibold text-lg mb-4 flex items-center">
-                                            <i className="fas fa-sitemap mr-3 text-richred"></i>
-                                            Scene Hierarchy
-                                        </h3>
-                                    </div>
-                                    <div className="text-center text-slate-500 text-sm mt-8">
-                                        <i className="fas fa-layer-group text-2xl mb-2 block"></i>
-                                        No objects in scene
-                                    </div>
-                                </div>
-                            )}
+                                </button>
+                            ))}
                         </div>
-                    )}
-                </aside>
+
+                        {/* Content Area */}
+                        <div className="flex-1 overflow-y-auto bg-black/20 custom-scrollbar overflow-x-hidden">
+                            <div className="h-full w-[220px]">
+                                {/* Create Panel */}
+                                {activeTab === 'create' && (
+                                    <div className="p-5">
+                                        <div className="mb-6">
+                                            <h3 className="font-bold text-lg text-white mb-1">Create</h3>
+                                            <p className="text-xs text-slate-500">Add objects to your scene</p>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            <div>
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Primitives</h4>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    {['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'].map((shape) => (
+                                                        <div
+                                                            key={shape}
+                                                            className="glass-panel border border-white/5 rounded-xl p-3 cursor-pointer flex flex-col items-center gap-2 hover:bg-white/10 hover:border-white/20 transition-all group"
+                                                            onClick={() => handleCreateShape(shape)}
+                                                        >
+                                                            <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform text-white/70 group-hover:text-richred">
+                                                                <i className={`fas fa-${shape === 'box' ? 'cube' : shape === 'sphere' ? 'globe' : shape === 'cylinder' ? 'database' : shape === 'cone' ? 'concierge-bell' : shape === 'torus' ? 'ring' : 'square'}`}></i>
+                                                            </div>
+                                                            <span className="text-[10px] font-medium text-slate-300 capitalize group-hover:text-white">{shape}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Sculpt Panel */}
+                                {activeTab === 'sculpt' && (
+                                    <div className="p-5">
+                                        <div className="mb-6">
+                                            <h3 className="font-bold text-lg text-white mb-1">Sculpt</h3>
+                                            <p className="text-xs text-slate-500">Mold your meshes</p>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {[
+                                                { tool: 'draw', icon: 'paint-brush' },
+                                                { tool: 'smooth', icon: 'brush' },
+                                                { tool: 'flatten', icon: 'ruler-combined' },
+                                                { tool: 'inflate', icon: 'expand' },
+                                                { tool: 'pinch', icon: 'hand-paper' },
+                                                { tool: 'grab', icon: 'hand-rock' },
+                                                { tool: 'crevice', icon: 'mountain' },
+                                                { tool: 'mask', icon: 'mask' }
+                                            ].map(({ tool, icon }) => (
+                                                <div
+                                                    key={tool}
+                                                    className="glass-panel border border-white/5 rounded-xl p-3 cursor-pointer flex flex-col items-center gap-2 hover:bg-white/10 hover:border-white/20 transition-all group"
+                                                >
+                                                    <i className={`fas fa-${icon} text-lg text-slate-400 group-hover:text-richred transition-colors`}></i>
+                                                    <span className="text-[10px] capitalize text-slate-400 group-hover:text-white">{tool}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Scene Panel */}
+                                {activeTab === 'scene' && (
+                                    <div className="p-5">
+                                        <div className="mb-6">
+                                            <h3 className="font-bold text-lg text-white mb-1">Outliner</h3>
+                                            <p className="text-xs text-slate-500">Scene hierarchy</p>
+                                        </div>
+
+                                        {objectCount === 0 ? (
+                                            <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-white/5 rounded-xl">
+                                                <i className="fas fa-layer-group text-2xl text-slate-600 mb-2"></i>
+                                                <span className="text-xs text-slate-500">Empty Scene</span>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-1">
+                                                {/* Placeholder for object list */}
+                                                <div className="text-xs text-slate-500 italic">Objects list (Coming soon)</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Properties Panel */}
+                                {activeTab === 'properties' && (
+                                    <div className="p-5">
+                                        <div className="mb-6">
+                                            <h3 className="font-bold text-lg text-white mb-1">Properties</h3>
+                                            <p className="text-xs text-slate-500">Object settings</p>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            {/* Transform */}
+                                            <div className="space-y-3">
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                                                    Transform
+                                                    <i className="fas fa-arrows-alt text-[10px]"></i>
+                                                </h4>
+                                                <div className="space-y-2">
+                                                    {['Location', 'Rotation', 'Scale'].map((label, i) => (
+                                                        <div key={label} className="grid grid-cols-4 gap-2 items-center">
+                                                            <span className="text-[10px] text-slate-500">{label.substring(0, 3)}</span>
+                                                            {['x', 'y', 'z'].map((axis, j) => (
+                                                                <input
+                                                                    key={axis}
+                                                                    type="number"
+                                                                    className={`w-full bg-black/40 border-b-2 ${j === 0 ? 'border-red-500/50' : j === 1 ? 'border-green-500/50' : 'border-blue-500/50'} rounded-t-sm px-1 py-1 text-[10px] text-white font-mono focus:outline-none focus:bg-white/10 transition-colors`}
+                                                                    placeholder="0"
+                                                                    defaultValue={label === 'Scale' ? "1" : "0"}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="h-px bg-white/10"></div>
+
+                                            {/* Material */}
+                                            <div className="space-y-3">
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                                                    Material
+                                                    <i className="fas fa-palette text-[10px]"></i>
+                                                </h4>
+
+                                                <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg border border-white/5">
+                                                    <span className="text-xs text-slate-300">Base Color</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-mono text-slate-500">#808080</span>
+                                                        <input type="color" className="w-6 h-6 rounded overflow-hidden cursor-pointer border-none" defaultValue="#808080" />
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-3 pt-2">
+                                                    {[
+                                                        { label: 'Roughness', val: 0.5 },
+                                                        { label: 'Metallic', val: 0.0 }
+                                                    ].map(slider => (
+                                                        <div key={slider.label}>
+                                                            <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                                                                <span>{slider.label}</span>
+                                                                <span className="font-mono">{slider.val.toFixed(2)}</span>
+                                                            </div>
+                                                            <input type="range" min="0" max="1" step="0.01" defaultValue={slider.val} className="w-full h-1 bg-white/10 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-richred" />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </aside>
+                </div>
 
                 {/* Main Viewport */}
                 <main className="flex-1 flex flex-col">
                     {/* Toolbar */}
-                    <div className="h-16 glass-panel border-b border-slate-200 flex items-center px-6 space-x-2">
+                    <div className="h-16 glass-panel border-b border-white/10 flex items-center px-6 space-x-2">
                         {/* Transform Tools */}
-                        <div className="flex items-center space-x-1 pr-4 border-r border-slate-200">
+                        <div className="flex items-center space-x-1 pr-4 border-r border-white/10">
                             {[
                                 { tool: 'select' as Tool, icon: 'mouse-pointer' },
                                 { tool: 'move' as Tool, icon: 'arrows-alt' },
@@ -329,7 +469,7 @@ const Builder: React.FC = () => {
                             ].map(({ tool, icon }) => (
                                 <button
                                     key={tool}
-                                    className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg transition-all ${activeTool === tool ? 'bg-richred text-white' : 'glass-panel hover:bg-slate-100'}`}
+                                    className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg transition-all ${activeTool === tool ? 'bg-richred text-white' : 'glass-panel hover:bg-white/10'}`}
                                     onClick={() => handleToolChange(tool)}
                                 >
                                     <i className={`fas fa-${icon}`}></i>
@@ -338,7 +478,7 @@ const Builder: React.FC = () => {
                         </div>
 
                         {/* View Modes */}
-                        <div className="flex items-center space-x-1 pr-4 border-r border-slate-200">
+                        <div className="flex items-center space-x-1 pr-4 border-r border-white/10">
                             {[
                                 { mode: 'solid' as ViewMode, icon: 'cube' },
                                 { mode: 'wireframe' as ViewMode, icon: 'project-diagram' },
@@ -347,7 +487,7 @@ const Builder: React.FC = () => {
                             ].map(({ mode, icon }) => (
                                 <button
                                     key={mode}
-                                    className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg transition-all ${viewMode === mode ? 'bg-richred text-white' : 'glass-panel hover:bg-slate-100'}`}
+                                    className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg transition-all ${viewMode === mode ? 'bg-richred text-white' : 'glass-panel hover:bg-white/10'}`}
                                     onClick={() => handleViewModeChange(mode)}
                                 >
                                     <i className={`fas fa-${icon}`}></i>
@@ -365,7 +505,7 @@ const Builder: React.FC = () => {
                             ].map(({ view, icon }) => (
                                 <button
                                     key={view}
-                                    className="w-10 h-10 rounded-lg flex items-center justify-center text-lg glass-panel hover:bg-slate-100 transition-all"
+                                    className="w-10 h-10 rounded-lg flex items-center justify-center text-lg glass-panel hover:bg-white/10 transition-all"
                                     onClick={() => handleCameraViewChange(view)}
                                 >
                                     <i className={`fas fa-${icon}`}></i>
@@ -375,7 +515,7 @@ const Builder: React.FC = () => {
                     </div>
 
                     {/* 3D Viewport */}
-                    <div className="flex-1 relative bg-gradient-to-br from-cream-100 to-cream-200">
+                    <div className="flex-1 relative bg-white">
                         <canvas ref={canvasRef} className="w-full h-full"></canvas>
 
                         {/* Welcome Screen */}
@@ -385,8 +525,8 @@ const Builder: React.FC = () => {
                                     <div className="w-32 h-32 glass-panel rounded-full flex items-center justify-center mb-8 mx-auto">
                                         <i className="fas fa-cube text-4xl text-richred"></i>
                                     </div>
-                                    <h3 className="text-2xl font-bold mb-4">Welcome to Olmec Builder</h3>
-                                    <p className="text-slate-600 mb-6 max-w-md">
+                                    <h3 className="text-2xl font-bold mb-4 text-black">Welcome to Ininsico Builder</h3>
+                                    <p className="text-black mb-6 max-w-md">
                                         Start creating by adding objects from the left panel
                                     </p>
                                 </div>
@@ -395,115 +535,31 @@ const Builder: React.FC = () => {
                     </div>
                 </main>
 
-                {/* Right Sidebar */}
-                <aside className={`${isRightPanelCollapsed ? 'w-0' : 'w-80'} glass-panel border-l border-slate-200 overflow-y-auto transition-all duration-300 relative`}>
-                    <button
-                        className="absolute left-0 top-1/2 transform -translate-x-full -translate-y-1/2 w-6 h-12 glass-panel border border-slate-200 rounded-l-lg flex items-center justify-center hover:bg-slate-100 transition-colors z-10"
-                        onClick={() => setIsRightPanelCollapsed(!isRightPanelCollapsed)}
-                    >
-                        <i className={`fas fa-chevron-${isRightPanelCollapsed ? 'left' : 'right'} text-xs`}></i>
-                    </button>
 
-                    {!isRightPanelCollapsed && (
-                        <div className="panel-content h-full p-6">
-                            {/* Properties Panel */}
-                            <div className="mb-6">
-                                <h3 className="font-semibold text-lg mb-4 flex items-center">
-                                    <i className="fas fa-cog mr-3 text-richred"></i>
-                                    Properties
-                                </h3>
-                                <div className="text-center text-slate-500 text-sm">
-                                    <i className="fas fa-mouse-pointer text-2xl mb-2 block"></i>
-                                    Select an object to view properties
-                                </div>
-                            </div>
-
-                            {/* Transform Panel */}
-                            <div className="mb-6">
-                                <h3 className="font-semibold text-lg mb-4 flex items-center">
-                                    <i className="fas fa-arrows-alt mr-3 text-richred"></i>
-                                    Transform
-                                </h3>
-                                <div className="space-y-3">
-                                    {['X', 'Y', 'Z'].map((axis) => (
-                                        <div key={axis}>
-                                            <label className="block text-xs text-slate-600 mb-1">{axis}</label>
-                                            <input
-                                                type="number"
-                                                defaultValue="0.000"
-                                                className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-mono focus:border-richred focus:ring-1 focus:ring-richred outline-none transition-all"
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Material Panel */}
-                            <div className="mb-6">
-                                <h3 className="font-semibold text-lg mb-4 flex items-center">
-                                    <i className="fas fa-palette mr-3 text-richred"></i>
-                                    Material
-                                </h3>
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs text-slate-600 mb-2">Base Color</label>
-                                        <input
-                                            type="color"
-                                            defaultValue="#808080"
-                                            className="w-full h-10 rounded-lg border border-slate-200 cursor-pointer"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-slate-600 mb-2">Metallic</label>
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="1"
-                                            step="0.01"
-                                            defaultValue="0"
-                                            className="w-full"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-slate-600 mb-2">Roughness</label>
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="1"
-                                            step="0.01"
-                                            defaultValue="0.5"
-                                            className="w-full"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </aside>
             </div>
 
             {/* Timeline Panel */}
             {isTimelineVisible && (
-                <div className="h-48 glass-panel border-t border-slate-200 flex flex-col">
-                    <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200">
+                <div className="h-48 glass-panel border-t border-white/10 flex flex-col">
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
                         <div className="flex items-center">
                             <i className="fas fa-film mr-2 text-richred"></i>
                             <h3 className="font-semibold">Animation Timeline</h3>
                         </div>
                         <div className="flex items-center space-x-2">
-                            <button className="glass-panel px-2 py-1 rounded text-sm hover:bg-slate-100">
+                            <button className="glass-panel px-2 py-1 rounded text-sm hover:bg-white/10">
                                 <i className="fas fa-play"></i>
                             </button>
-                            <button className="glass-panel px-2 py-1 rounded text-sm hover:bg-slate-100">
+                            <button className="glass-panel px-2 py-1 rounded text-sm hover:bg-white/10">
                                 <i className="fas fa-pause"></i>
                             </button>
-                            <button className="glass-panel px-2 py-1 rounded text-sm hover:bg-slate-100">
+                            <button className="glass-panel px-2 py-1 rounded text-sm hover:bg-white/10">
                                 <i className="fas fa-stop"></i>
                             </button>
                         </div>
                     </div>
                     <div className="flex-1 p-4">
-                        <div className="text-center text-slate-500 text-sm">
+                        <div className="text-center text-slate-400 text-sm">
                             <i className="fas fa-clock text-2xl mb-2 block"></i>
                             No animation tracks
                         </div>
@@ -512,20 +568,7 @@ const Builder: React.FC = () => {
             )}
 
             {/* Status Bar */}
-            <footer className="h-8 px-6 flex items-center justify-between text-xs text-slate-600 font-mono border-t border-slate-200 bg-white">
-                <div className="flex items-center space-x-6">
-                    <span>Objects: {objectCount}</span>
-                    <span>Triangles: {triangleCount}</span>
-                    <span>Vertices: {vertexCount}</span>
-                </div>
-                <div className="flex items-center space-x-6">
-                    <span>FPS: {fps}</span>
-                    <span className="flex items-center">
-                        <div className="w-1.5 h-1.5 bg-richred rounded-full mr-2"></div>
-                        <span>{statusMessage}</span>
-                    </span>
-                </div>
-            </footer>
+
 
             {/* Notification */}
             {notification && (

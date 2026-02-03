@@ -130,4 +130,18 @@ export const modelAPI = {
     },
 };
 
+// Email API
+export const emailAPI = {
+    sendEmail: async (data: {
+        firstName: string;
+        lastName: string;
+        email: string;
+        subject: string;
+        message: string;
+    }) => {
+        const response = await api.post('/send-email', data);
+        return response.data;
+    },
+};
+
 export default api;

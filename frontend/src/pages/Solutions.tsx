@@ -48,7 +48,7 @@ const Solutions: React.FC = () => {
                     className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed"
                 >
                     Whether you're selling products, teaching students, or building worlds,
-                    Olmec provides the infrastructure to make it accessible.
+                    Ininsico provides the infrastructure to make it accessible.
                 </motion.p>
             </section>
 
@@ -93,7 +93,7 @@ const Solutions: React.FC = () => {
                                 The Future of E-Commerce
                             </h2>
                             <p className="text-slate-600 text-lg mb-8 leading-relaxed">
-                                Static images are obsolete. Olmec enables brands to integrate fully interactive 3D viewers directly into their storefronts.
+                                Static images are obsolete. Ininsico enables brands to integrate fully interactive 3D viewers directly into their storefronts.
                                 <br /><br />
                                 Users can rotate, zoom, and customize products in real-time, leading to a <strong>40% increase in engagement</strong> and <strong>20% reduction in returns</strong>.
                             </p>

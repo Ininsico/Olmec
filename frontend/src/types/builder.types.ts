@@ -98,7 +98,7 @@ export type CameraView = 'front' | 'side' | 'top' | 'perspective';
 
 export type CameraMode = 'perspective' | 'orthographic';
 
-export type TransformMode = 'location' | 'rotation' | 'scale';
+export type TransformMode = 'translate' | 'rotation' | 'scale';
 
 export interface SnapSettings {
     enabled: boolean;
@@ -188,7 +188,7 @@ export interface ContextMenuItem {
     divider?: boolean;
 }
 
-export type TabType = 'create' | 'sculpt' | 'scene';
+export type TabType = 'create' | 'sculpt' | 'scene' | 'properties';
 
 // ==================== EXPORT TYPES ====================
 

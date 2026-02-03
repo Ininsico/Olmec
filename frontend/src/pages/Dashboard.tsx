@@ -509,7 +509,7 @@ const Dashboard: React.FC = () => {
                                         </h3>
                                         <div className="space-y-4">
                                             <div className="text-sm group cursor-pointer">
-                                                <p className="font-bold text-slate-800 group-hover:text-richred-600 transition-colors">Olmec v1.0.2 Released</p>
+                                                <p className="font-bold text-slate-800 group-hover:text-richred-600 transition-colors">Ininsico v1.0.2 Released</p>
                                                 <p className="text-slate-500 mt-1">Improved rendering performance for glass materials.</p>
                                             </div>
                                             <div className="text-sm group cursor-pointer pt-4 border-t border-slate-100">

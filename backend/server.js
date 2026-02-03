@@ -31,6 +31,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api', require('./routes/authRoutes'));
 app.use('/api', require('./routes/userRoutes'));
 app.use('/api', require('./routes/modelRoutes'));
+app.use('/api', require('./routes/emailRoutes'));
 
 // Global Error Handler
 app.use((err, req, res, next) => {

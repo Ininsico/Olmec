@@ -25,7 +25,7 @@ export class AppState {
     activeTool: Tool = 'select';
     viewMode: ViewMode = 'solid';
     cameraMode: CameraMode = 'perspective';
-    transformMode: TransformMode = 'location';
+    transformMode: TransformMode = 'translate';
     clipboard: any = null;
     history: string[] = [];
     historyIndex: number = -1;
@@ -488,8 +488,8 @@ export class AppState {
     updatePerformance(): void {
         this.performance.frameCount++;
         if (performance.now() >= this.performance.lastFrameTime + 1000) {
-            this.performance.fps = Math.min(60, Math.round(this.performance.frameCount /
-                (performance.now() - this.performance.lastFrameTime) * 1000));
+            this.performance.fps = Math.round(this.performance.frameCount /
+                (performance.now() - this.performance.lastFrameTime) * 1000);
             this.performance.frameCount = 0;
             this.performance.lastFrameTime = performance.now();
         }

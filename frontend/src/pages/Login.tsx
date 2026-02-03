@@ -67,7 +67,7 @@ const Login: React.FC = () => {
                         transition={{ duration: 0.8 }}
                     >
                         <h2 className="text-4xl font-bold text-white mb-6 font-serif">
-                            "Olmec isn't just a tool; it's an extension of my imagination."
+                            "Ininsico isn't just a tool; it's an extension of my imagination."
                         </h2>
                         <p className="text-xl text-neutral-400 mb-8">
                             Join our community of creators building the future of 3D on the web.

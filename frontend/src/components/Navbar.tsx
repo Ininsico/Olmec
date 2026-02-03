@@ -43,18 +43,18 @@ const Navbar: React.FC = () => {
                 <div
                     className={cn(
                         "relative flex justify-between items-center px-8 py-4 rounded-[24px] transition-all duration-500",
-                        scrolled ? "glass-nav shadow-2xl border-white/20" : "bg-transparent"
+                        scrolled ? "bg-white/80 backdrop-blur-md shadow-lg border border-slate-200/50" : "bg-transparent"
                     )}
                 >
                     {/* Desktop Links */}
                     <div className="hidden lg:flex items-center space-x-10">
-                        <Link to="/product" className="text-sm font-bold text-slate-600 hover:text-richred-700 transition-colors tracking-tight">
+                        <Link to="/product" className="text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors tracking-tight">
                             Product
                         </Link>
-                        <Link to="/contact" className="text-sm font-bold text-slate-600 hover:text-richred-700 transition-colors tracking-tight">
+                        <Link to="/contact" className="text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors tracking-tight">
                             Contact
                         </Link>
-                        <Link to="/about" className="text-sm font-bold text-slate-600 hover:text-richred-700 transition-colors tracking-tight">
+                        <Link to="/about" className="text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors tracking-tight">
                             About
                         </Link>
                     </div>
@@ -118,7 +118,7 @@ const Navbar: React.FC = () => {
                         ) : (
                             <div className="hidden md:flex items-center space-x-2 mr-2">
                                 <Link to="/login">
-                                    <Button variant="ghost" size="sm">Sign In</Button>
+                                    <Button variant="ghost" size="sm" className="text-slate-600 hover:text-slate-900 hover:bg-slate-100">Sign In</Button>
                                 </Link>
                                 <Link to="/signup">
                                     <Button variant="dark" size="sm">
@@ -129,7 +129,7 @@ const Navbar: React.FC = () => {
                         )}
 
                         <button
-                            className="lg:hidden w-10 h-10 flex items-center justify-center text-slate-900 bg-slate-100 rounded-xl"
+                            className="lg:hidden w-10 h-10 flex items-center justify-center text-slate-900 bg-slate-100 rounded-xl hover:bg-slate-200"
                             onClick={() => setIsOpen(!isOpen)}
                         >
                             {isOpen ? <X size={20} /> : <Menu size={20} />}
@@ -156,7 +156,7 @@ const Navbar: React.FC = () => {
                             {isAuthenticated && user ? (
                                 <div className="space-y-4 pt-4">
                                     <div className="flex items-center space-x-3 px-4 py-2">
-                                        {user.profilePicture ? (
+                                        {user?.profilePicture ? (
                                             <img
                                                 src={user.profilePicture}
                                                 alt={user.name}
@@ -164,10 +164,10 @@ const Navbar: React.FC = () => {
                                             />
                                         ) : (
                                             <div className="w-10 h-10 rounded-full bg-richred-500 flex items-center justify-center text-white font-bold">
-                                                {user.name.charAt(0).toUpperCase()}
+                                                {user?.name?.charAt(0).toUpperCase()}
                                             </div>
                                         )}
-                                        <span className="text-sm font-bold text-slate-900">{user.name}</span>
+                                        <span className="text-sm font-bold text-slate-900">{user?.name}</span>
                                     </div>
                                     <Button
                                         variant="outline"
@@ -192,7 +192,7 @@ const Navbar: React.FC = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </nav>
+        </nav >
     );
 };
 

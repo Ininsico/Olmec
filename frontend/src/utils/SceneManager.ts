@@ -36,7 +36,7 @@ export class SceneManager {
 
         // Initialize scene
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x0a0a0a);
+        this.scene.background = new THREE.Color(0xffffff);
 
         // Initialize camera
         this.camera = new THREE.PerspectiveCamera(
@@ -75,7 +75,7 @@ export class SceneManager {
         this.scene.add(this.transformControls as unknown as THREE.Object3D);
 
         // Add grid
-        this.gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
+        this.gridHelper = new THREE.GridHelper(20, 20, 0x888888, 0xcccccc);
         this.scene.add(this.gridHelper);
 
         // Add axes
@@ -367,7 +367,7 @@ export class SceneManager {
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
 
-        this.renderer.setSize(width, height);
+        this.renderer.setSize(width, height, false); // Pass false to avoid overriding CSS styles
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     }
 

@@ -1,21 +1,40 @@
 @import "tailwindcss";
 
 body {
-  background-color: #FDFBF7;
-  color: #0f172a;
+  background-color: #000000;
+  color: #ffffff;
   font-family: "Plus Jakarta Sans", sans-serif;
 }
 
 .glass-nav {
-  background-color: rgba(255, 255, 255, 0.7);
+  background-color: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .glass-panel {
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(20, 20, 20, 0.8);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f0f0f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #444;
 }
