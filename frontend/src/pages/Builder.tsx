@@ -3,6 +3,17 @@ import { SceneManager } from '../utils/SceneManager';
 import { AppState } from '../utils/AppState';
 import { useAppStore } from '../store/useAppStore';
 import type { Tool, ViewMode, CameraView, NotificationType } from '../types/builder.types';
+import { CreatePanel } from '../components/builder/sidebar/CreatePanel';
+import { EditPanel } from '../components/builder/sidebar/EditPanel';
+import { SculptPanel } from '../components/builder/sidebar/SculptPanel';
+import { ShadingPanel } from '../components/builder/sidebar/ShadingPanel';
+import { AnimPanel } from '../components/builder/sidebar/AnimPanel';
+import { PhysicsPanel } from '../components/builder/sidebar/PhysicsPanel';
+import { ScenePanel } from '../components/builder/sidebar/ScenePanel';
+import { WorldPanel } from '../components/builder/sidebar/WorldPanel';
+import { RenderPanel } from '../components/builder/sidebar/RenderPanel';
+import { LogicPanel } from '../components/builder/sidebar/LogicPanel';
+import { PropertiesPanel } from '../components/builder/sidebar/PropertiesPanel';
 
 const Builder: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -15,7 +26,7 @@ const Builder: React.FC = () => {
     const activeTab = useAppStore((state) => state.activeTab);
     const activeTool = useAppStore((state) => state.activeTool);
     const viewMode = useAppStore((state) => state.viewMode);
-    const isTimelineVisible = useAppStore((state) => state.isTimelineVisible);
+
     const isLeftPanelCollapsed = useAppStore((state) => state.isLeftPanelCollapsed);
     const objectCount = useAppStore((state) => state.sceneObjects.length);
 
@@ -30,7 +41,6 @@ const Builder: React.FC = () => {
         setActiveTab,
         setTool,
         setViewMode: setStoreViewMode,
-        toggleTimeline,
         toggleLeftPanel,
         addObject: addStoreObject
     } = useAppStore.getState(); // Using getState() for actions to avoid re-renders if actions were to change (they don't usually)
@@ -193,63 +203,101 @@ const Builder: React.FC = () => {
                 <nav className="flex space-x-1">
                     {/* File Menu */}
                     <div className="menu-item relative group">
-                        <div className="px-4 py-2 rounded-lg cursor-pointer bg-white/5 border border-white/10 hover:bg-white/20 transition-all">
-                            <span className="text-sm font-medium">File</span>
+                        <div className="px-3 py-1.5 rounded-md cursor-pointer hover:bg-white/10 transition-all">
+                            <span className="text-xs font-medium text-slate-300 group-hover:text-white">File</span>
                         </div>
-                        <div className="submenu absolute top-full left-0 mt-2 min-w-[200px] rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 glass-panel shadow-lg">
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer rounded-t-lg hover:bg-white/10">
-                                <i className="fas fa-plus w-4 mr-3"></i>New Project
+                        <div className="submenu absolute top-full left-0 mt-1 min-w-[200px] rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 glass-panel shadow-2xl border border-white/10 z-50">
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer rounded-t-lg hover:bg-richred hover:text-white transition-colors flex items-center">
+                                <i className="fas fa-plus w-5"></i>New Project
                             </div>
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer hover:bg-white/10">
-                                <i className="fas fa-folder-open w-4 mr-3"></i>Open...
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer hover:bg-richred hover:text-white transition-colors flex items-center">
+                                <i className="fas fa-folder-open w-5"></i>Open...
                             </div>
-                            <div className="h-px bg-white/20 mx-2"></div>
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer hover:bg-white/10">
-                                <i className="fas fa-download w-4 mr-3"></i>Import
+                            <div className="h-px bg-white/10 mx-2 my-1"></div>
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer hover:bg-richred hover:text-white transition-colors flex items-center">
+                                <i className="fas fa-download w-5"></i>Import
                             </div>
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer rounded-b-lg hover:bg-white/10">
-                                <i className="fas fa-upload w-4 mr-3"></i>Export
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer rounded-b-lg hover:bg-richred hover:text-white transition-colors flex items-center">
+                                <i className="fas fa-upload w-5"></i>Export
                             </div>
                         </div>
                     </div>
 
                     {/* Edit Menu */}
                     <div className="menu-item relative group">
-                        <div className="px-4 py-2 rounded-lg cursor-pointer bg-white/5 border border-white/10 hover:bg-white/20 transition-all">
-                            <span className="text-sm font-medium">Edit</span>
+                        <div className="px-3 py-1.5 rounded-md cursor-pointer hover:bg-white/10 transition-all">
+                            <span className="text-xs font-medium text-slate-300 group-hover:text-white">Edit</span>
                         </div>
-                        <div className="submenu absolute top-full left-0 mt-2 min-w-[200px] rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 glass-panel shadow-lg">
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer rounded-t-lg hover:bg-white/10" onClick={handleUndo}>
-                                <i className="fas fa-undo w-4 mr-3"></i>Undo
+                        <div className="submenu absolute top-full left-0 mt-1 min-w-[200px] rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 glass-panel shadow-2xl border border-white/10 z-50">
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer rounded-t-lg hover:bg-richred hover:text-white transition-colors flex items-center" onClick={handleUndo}>
+                                <i className="fas fa-undo w-5"></i>Undo <span className="ml-auto opacity-50 text-[10px]">Ctrl+Z</span>
                             </div>
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer hover:bg-white/10" onClick={handleRedo}>
-                                <i className="fas fa-redo w-4 mr-3"></i>Redo
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer hover:bg-richred hover:text-white transition-colors flex items-center" onClick={handleRedo}>
+                                <i className="fas fa-redo w-5"></i>Redo <span className="ml-auto opacity-50 text-[10px]">Ctrl+Shift+Z</span>
                             </div>
-                            <div className="h-px bg-white/20 mx-2"></div>
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer hover:bg-white/10">
-                                <i className="fas fa-clone w-4 mr-3"></i>Duplicate
+                            <div className="h-px bg-white/10 mx-2 my-1"></div>
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer hover:bg-richred hover:text-white transition-colors flex items-center">
+                                <i className="fas fa-cog w-5"></i>Preferences
                             </div>
-                            <div className="submenu-item px-4 py-3 text-sm cursor-pointer rounded-b-lg hover:bg-white/10">
-                                <i className="fas fa-trash w-4 mr-3"></i>Delete
+                        </div>
+                    </div>
+
+                    {/* Render Menu */}
+                    <div className="menu-item relative group">
+                        <div className="px-3 py-1.5 rounded-md cursor-pointer hover:bg-white/10 transition-all">
+                            <span className="text-xs font-medium text-slate-300 group-hover:text-white">Render</span>
+                        </div>
+                        <div className="submenu absolute top-full left-0 mt-1 min-w-[200px] rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 glass-panel shadow-2xl border border-white/10 z-50">
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer rounded-t-lg hover:bg-richred hover:text-white transition-colors flex items-center">
+                                <i className="fas fa-image w-5"></i>Render Image <span className="ml-auto opacity-50 text-[10px]">F12</span>
+                            </div>
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer hover:bg-richred hover:text-white transition-colors flex items-center">
+                                <i className="fas fa-film w-5"></i>Render Animation <span className="ml-auto opacity-50 text-[10px]">Ctrl+F12</span>
+                            </div>
+                            <div className="h-px bg-white/10 mx-2 my-1"></div>
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer rounded-b-lg hover:bg-richred hover:text-white transition-colors flex items-center">
+                                <i className="fas fa-eye w-5"></i>View Render
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Window Menu */}
+                    <div className="menu-item relative group">
+                        <div className="px-3 py-1.5 rounded-md cursor-pointer hover:bg-white/10 transition-all">
+                            <span className="text-xs font-medium text-slate-300 group-hover:text-white">Window</span>
+                        </div>
+                        <div className="submenu absolute top-full left-0 mt-1 min-w-[200px] rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 glass-panel shadow-2xl border border-white/10 z-50">
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer rounded-t-lg hover:bg-richred hover:text-white transition-colors flex items-center">
+                                <i className="fas fa-window-maximize w-5"></i>New Window
+                            </div>
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer hover:bg-richred hover:text-white transition-colors flex items-center" onClick={toggleFullscreen}>
+                                <i className="fas fa-expand w-5"></i>Toggle Fullscreen
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Help Menu */}
+                    <div className="menu-item relative group">
+                        <div className="px-3 py-1.5 rounded-md cursor-pointer hover:bg-white/10 transition-all">
+                            <span className="text-xs font-medium text-slate-300 group-hover:text-white">Help</span>
+                        </div>
+                        <div className="submenu absolute top-full left-0 mt-1 min-w-[200px] rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 glass-panel shadow-2xl border border-white/10 z-50">
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer rounded-t-lg hover:bg-richred hover:text-white transition-colors flex items-center">
+                                <i className="fas fa-book w-5"></i>Manual
+                            </div>
+                            <div className="submenu-item px-4 py-2 text-xs cursor-pointer hover:bg-richred hover:text-white transition-colors flex items-center">
+                                <i className="fas fa-graduation-cap w-5"></i>Tutorials
                             </div>
                         </div>
                     </div>
                 </nav>
 
                 <div className="ml-auto flex items-center space-x-4">
-                    <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-richred rounded-full animate-pulse"></div>
-                        <span className="text-sm text-slate-400 font-mono">ONLINE</span>
-                    </div>
+
                     <button className="bg-richred hover:bg-richred-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all">
                         <i className="fas fa-cloud-upload-alt mr-2"></i>Export
                     </button>
-                    <button
-                        className="bg-white/10 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                        onClick={toggleTimeline}
-                    >
-                        <i className="fas fa-film mr-2"></i>Timeline
-                    </button>
+
                     <button
                         className="bg-white/10 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
                         onClick={toggleFullscreen}
@@ -260,36 +308,43 @@ const Builder: React.FC = () => {
             </header>
 
             {/* Main Container */}
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden relative">
                 {/* Left Sidebar */}
-                <div className="relative h-full">
+                <div className="absolute left-0 top-0 h-full z-40 pointer-events-none">
                     {/* Toggle Button */}
                     <button
-                        className="absolute -right-6 top-1/2 transform -translate-y-1/2 w-6 h-12 glass-panel border-y border-r border-white/10 rounded-r-lg flex items-center justify-center hover:bg-white/10 transition-colors z-50 text-white"
+                        className="absolute -right-6 top-1/2 transform -translate-y-1/2 w-6 h-12 glass-panel border-y border-r border-white/10 rounded-r-lg flex items-center justify-center hover:bg-white/10 transition-colors z-50 text-white pointer-events-auto"
                         onClick={toggleLeftPanel}
                     >
                         <i className={`fas fa-chevron-${isLeftPanelCollapsed ? 'right' : 'left'} text-xs`}></i>
                     </button>
 
-                    <aside className={`${isLeftPanelCollapsed ? 'w-[60px]' : 'w-[280px]'} h-full glass-panel border-r border-white/10 transition-all duration-300 flex overflow-hidden`}>
+                    <aside className={`${isLeftPanelCollapsed ? 'w-[60px]' : 'w-[280px]'} h-full bg-black border-r border-white/20 transition-all duration-300 flex overflow-hidden pointer-events-auto`}>
 
                         {/* Vertical Navigation Rail */}
-                        <div className="w-[60px] flex-shrink-0 border-r border-white/10 flex flex-col items-center py-6 gap-6 bg-white/5 relative z-20">
+                        <div className="w-[60px] flex-shrink-0 border-r border-white/20 flex flex-col items-center py-6 gap-6 bg-black relative z-20">
                             {[
                                 { id: 'create', icon: 'plus', label: 'Create' },
+                                { id: 'edit', icon: 'cube', label: 'Edit' },
                                 { id: 'sculpt', icon: 'paint-brush', label: 'Sculpt' },
+                                { id: 'shading', icon: 'magic', label: 'Shading' },
+                                { id: 'anim', icon: 'running', label: 'Anim' },
+                                { id: 'physics', icon: 'atom', label: 'Physics' },
                                 { id: 'scene', icon: 'layer-group', label: 'Scene' },
+                                { id: 'world', icon: 'globe', label: 'World' },
+                                { id: 'render', icon: 'camera', label: 'Render' },
+                                { id: 'game', icon: 'gamepad', label: 'Logic' },
                                 { id: 'properties', icon: 'sliders-h', label: 'Props' }
                             ].map((tab) => (
                                 <button
                                     key={tab.id}
-                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all relative group ${activeTab === tab.id ? 'bg-richred text-white shadow-lg shadow-richred/20' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}
+                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all relative group ${activeTab === tab.id ? 'bg-white text-black shadow-lg shadow-white/20' : 'text-slate-500 hover:text-white'}`}
                                     onClick={() => setActiveTab(tab.id as any)}
                                 >
                                     <i className={`fas fa-${tab.icon} text-lg`}></i>
 
                                     {/* Tooltip */}
-                                    <div className="absolute left-full ml-4 px-2 py-1 bg-black/90 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/10 z-50">
+                                    <div className="absolute left-full ml-4 px-2 py-1 bg-white text-black text-xs font-bold rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
                                         {tab.label}
                                     </div>
                                 </button>
@@ -297,159 +352,40 @@ const Builder: React.FC = () => {
                         </div>
 
                         {/* Content Area */}
-                        <div className="flex-1 overflow-y-auto bg-black/20 custom-scrollbar overflow-x-hidden">
+                        <div className="flex-1 overflow-y-auto bg-black custom-scrollbar overflow-x-hidden">
                             <div className="h-full w-[220px]">
                                 {/* Create Panel */}
-                                {activeTab === 'create' && (
-                                    <div className="p-5">
-                                        <div className="mb-6">
-                                            <h3 className="font-bold text-lg text-white mb-1">Create</h3>
-                                            <p className="text-xs text-slate-500">Add objects to your scene</p>
-                                        </div>
+                                {activeTab === 'create' && <CreatePanel onCreateShape={handleCreateShape} />}
 
-                                        <div className="space-y-6">
-                                            <div>
-                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Primitives</h4>
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    {['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'].map((shape) => (
-                                                        <div
-                                                            key={shape}
-                                                            className="glass-panel border border-white/5 rounded-xl p-3 cursor-pointer flex flex-col items-center gap-2 hover:bg-white/10 hover:border-white/20 transition-all group"
-                                                            onClick={() => handleCreateShape(shape)}
-                                                        >
-                                                            <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform text-white/70 group-hover:text-richred">
-                                                                <i className={`fas fa-${shape === 'box' ? 'cube' : shape === 'sphere' ? 'globe' : shape === 'cylinder' ? 'database' : shape === 'cone' ? 'concierge-bell' : shape === 'torus' ? 'ring' : 'square'}`}></i>
-                                                            </div>
-                                                            <span className="text-[10px] font-medium text-slate-300 capitalize group-hover:text-white">{shape}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+                                {/* Edit Panel */}
+                                {activeTab === 'edit' && <EditPanel />}
+
+                                {/* Shading Panel */}
+                                {activeTab === 'shading' && <ShadingPanel />}
+
+                                {/* Animation Panel */}
+                                {activeTab === 'anim' && <AnimPanel />}
+
+                                {/* Physics Panel */}
+                                {activeTab === 'physics' && <PhysicsPanel />}
 
                                 {/* Sculpt Panel */}
-                                {activeTab === 'sculpt' && (
-                                    <div className="p-5">
-                                        <div className="mb-6">
-                                            <h3 className="font-bold text-lg text-white mb-1">Sculpt</h3>
-                                            <p className="text-xs text-slate-500">Mold your meshes</p>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {[
-                                                { tool: 'draw', icon: 'paint-brush' },
-                                                { tool: 'smooth', icon: 'brush' },
-                                                { tool: 'flatten', icon: 'ruler-combined' },
-                                                { tool: 'inflate', icon: 'expand' },
-                                                { tool: 'pinch', icon: 'hand-paper' },
-                                                { tool: 'grab', icon: 'hand-rock' },
-                                                { tool: 'crevice', icon: 'mountain' },
-                                                { tool: 'mask', icon: 'mask' }
-                                            ].map(({ tool, icon }) => (
-                                                <div
-                                                    key={tool}
-                                                    className="glass-panel border border-white/5 rounded-xl p-3 cursor-pointer flex flex-col items-center gap-2 hover:bg-white/10 hover:border-white/20 transition-all group"
-                                                >
-                                                    <i className={`fas fa-${icon} text-lg text-slate-400 group-hover:text-richred transition-colors`}></i>
-                                                    <span className="text-[10px] capitalize text-slate-400 group-hover:text-white">{tool}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
+                                {activeTab === 'sculpt' && <SculptPanel />}
 
                                 {/* Scene Panel */}
-                                {activeTab === 'scene' && (
-                                    <div className="p-5">
-                                        <div className="mb-6">
-                                            <h3 className="font-bold text-lg text-white mb-1">Outliner</h3>
-                                            <p className="text-xs text-slate-500">Scene hierarchy</p>
-                                        </div>
+                                {activeTab === 'scene' && <ScenePanel />}
 
-                                        {objectCount === 0 ? (
-                                            <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-white/5 rounded-xl">
-                                                <i className="fas fa-layer-group text-2xl text-slate-600 mb-2"></i>
-                                                <span className="text-xs text-slate-500">Empty Scene</span>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-1">
-                                                {/* Placeholder for object list */}
-                                                <div className="text-xs text-slate-500 italic">Objects list (Coming soon)</div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                {/* World Panel */}
+                                {activeTab === 'world' && <WorldPanel />}
+
+                                {/* Render Panel */}
+                                {activeTab === 'render' && <RenderPanel />}
+
+                                {/* Game Logic Panel */}
+                                {activeTab === 'game' && <LogicPanel />}
 
                                 {/* Properties Panel */}
-                                {activeTab === 'properties' && (
-                                    <div className="p-5">
-                                        <div className="mb-6">
-                                            <h3 className="font-bold text-lg text-white mb-1">Properties</h3>
-                                            <p className="text-xs text-slate-500">Object settings</p>
-                                        </div>
-
-                                        <div className="space-y-6">
-                                            {/* Transform */}
-                                            <div className="space-y-3">
-                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                                                    Transform
-                                                    <i className="fas fa-arrows-alt text-[10px]"></i>
-                                                </h4>
-                                                <div className="space-y-2">
-                                                    {['Location', 'Rotation', 'Scale'].map((label, i) => (
-                                                        <div key={label} className="grid grid-cols-4 gap-2 items-center">
-                                                            <span className="text-[10px] text-slate-500">{label.substring(0, 3)}</span>
-                                                            {['x', 'y', 'z'].map((axis, j) => (
-                                                                <input
-                                                                    key={axis}
-                                                                    type="number"
-                                                                    className={`w-full bg-black/40 border-b-2 ${j === 0 ? 'border-red-500/50' : j === 1 ? 'border-green-500/50' : 'border-blue-500/50'} rounded-t-sm px-1 py-1 text-[10px] text-white font-mono focus:outline-none focus:bg-white/10 transition-colors`}
-                                                                    placeholder="0"
-                                                                    defaultValue={label === 'Scale' ? "1" : "0"}
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div className="h-px bg-white/10"></div>
-
-                                            {/* Material */}
-                                            <div className="space-y-3">
-                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                                                    Material
-                                                    <i className="fas fa-palette text-[10px]"></i>
-                                                </h4>
-
-                                                <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg border border-white/5">
-                                                    <span className="text-xs text-slate-300">Base Color</span>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] font-mono text-slate-500">#808080</span>
-                                                        <input type="color" className="w-6 h-6 rounded overflow-hidden cursor-pointer border-none" defaultValue="#808080" />
-                                                    </div>
-                                                </div>
-
-                                                <div className="space-y-3 pt-2">
-                                                    {[
-                                                        { label: 'Roughness', val: 0.5 },
-                                                        { label: 'Metallic', val: 0.0 }
-                                                    ].map(slider => (
-                                                        <div key={slider.label}>
-                                                            <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                                                                <span>{slider.label}</span>
-                                                                <span className="font-mono">{slider.val.toFixed(2)}</span>
-                                                            </div>
-                                                            <input type="range" min="0" max="1" step="0.01" defaultValue={slider.val} className="w-full h-1 bg-white/10 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-richred" />
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+                                {activeTab === 'properties' && <PropertiesPanel />}
                             </div>
                         </div>
                     </aside>
@@ -458,7 +394,7 @@ const Builder: React.FC = () => {
                 {/* Main Viewport */}
                 <main className="flex-1 flex flex-col">
                     {/* Toolbar */}
-                    <div className="h-16 glass-panel border-b border-white/10 flex items-center px-6 space-x-2">
+                    <div className="h-16 glass-panel border-b border-white/10 flex items-center justify-end px-6 space-x-2">
                         {/* Transform Tools */}
                         <div className="flex items-center space-x-1 pr-4 border-r border-white/10">
                             {[
@@ -538,34 +474,7 @@ const Builder: React.FC = () => {
 
             </div>
 
-            {/* Timeline Panel */}
-            {isTimelineVisible && (
-                <div className="h-48 glass-panel border-t border-white/10 flex flex-col">
-                    <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
-                        <div className="flex items-center">
-                            <i className="fas fa-film mr-2 text-richred"></i>
-                            <h3 className="font-semibold">Animation Timeline</h3>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <button className="glass-panel px-2 py-1 rounded text-sm hover:bg-white/10">
-                                <i className="fas fa-play"></i>
-                            </button>
-                            <button className="glass-panel px-2 py-1 rounded text-sm hover:bg-white/10">
-                                <i className="fas fa-pause"></i>
-                            </button>
-                            <button className="glass-panel px-2 py-1 rounded text-sm hover:bg-white/10">
-                                <i className="fas fa-stop"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div className="flex-1 p-4">
-                        <div className="text-center text-slate-400 text-sm">
-                            <i className="fas fa-clock text-2xl mb-2 block"></i>
-                            No animation tracks
-                        </div>
-                    </div>
-                </div>
-            )}
+
 
             {/* Status Bar */}
 

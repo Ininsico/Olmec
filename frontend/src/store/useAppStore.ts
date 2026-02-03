@@ -13,7 +13,7 @@ interface AppState {
     isLeftPanelCollapsed: boolean;
     isRightPanelCollapsed: boolean;
     isTimelineVisible: boolean;
-    activeTab: 'create' | 'sculpt' | 'scene' | 'properties';
+    activeTab: 'create' | 'edit' | 'sculpt' | 'shading' | 'anim' | 'physics' | 'scene' | 'world' | 'render' | 'game' | 'properties';
 
     // Editor State
     activeTool: Tool;
@@ -44,7 +44,7 @@ interface AppState {
     toggleLeftPanel: () => void;
     toggleRightPanel: () => void;
     toggleTimeline: () => void;
-    setActiveTab: (tab: 'create' | 'sculpt' | 'scene' | 'properties') => void;
+    setActiveTab: (tab: 'create' | 'edit' | 'sculpt' | 'shading' | 'anim' | 'physics' | 'scene' | 'world' | 'render' | 'game' | 'properties') => void;
 
     updateStats: (stats: Partial<{ triangles: number; vertices: number; fps: number }>) => void;
 }
