@@ -43,7 +43,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({ onCreateShape }) => {
                                 <button
                                     key={item}
                                     className="text-left px-2 py-1.5 border border-white/5 rounded hover:bg-white hover:text-black hover:border-white text-[9px] text-slate-300 transition-colors truncate"
-                                    onClick={() => onCreateShape(item.toLowerCase().replace(' ', '_'))}
+                                    onClick={() => onCreateShape(item.toLowerCase().replace(/\s+/g, '_'))}
                                 >
                                     {item}
                                 </button>

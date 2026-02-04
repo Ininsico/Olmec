@@ -4,7 +4,7 @@ import * as THREE from 'three';
 
 export interface SceneObject {
     id: number;
-    type: 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'plane' | 'extrude' | 'bevel' | 'boolean';
+    type: 'plane' | 'cube' | 'circle' | 'uv_sphere' | 'ico_sphere' | 'cylinder' | 'cone' | 'torus' | 'grid' | 'monkey' | 'box' | 'sphere';
     name: string;
     threeObj?: THREE.Object3D;
     userData?: Record<string, any>;

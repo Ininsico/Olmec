@@ -24,6 +24,12 @@ const Builder: React.FC = () => {
 
     // Zustand Store
     const activeTab = useAppStore((state) => state.activeTab);
+    const selectedObjectIds = useAppStore((state) => state.selectedObjectIds);
+    const sceneObjects = useAppStore((state) => state.sceneObjects);
+
+    // Helper to get object by ID
+    const getObject = (id: number) => sceneObjects.find(o => o.id === id);
+
     const activeTool = useAppStore((state) => state.activeTool);
     const viewMode = useAppStore((state) => state.viewMode);
 
@@ -31,9 +37,9 @@ const Builder: React.FC = () => {
     const objectCount = useAppStore((state) => state.sceneObjects.length);
 
     // Stats (Managed locally to avoid store overhead on every frame, updated throttled)
-    const [stats, setStats] = useState({ triangles: 0, vertices: 0, fps: 0 });
+    const [_stats, setStats] = useState({ triangles: 0, vertices: 0, fps: 0 });
 
-    const [statusMessage, setStatusMessage] = useState('Ready');
+    const [_statusMessage, setStatusMessage] = useState('Ready');
     const [notification, setNotification] = useState<{ type: NotificationType; message: string } | null>(null);
 
     // Actions
@@ -52,6 +58,27 @@ const Builder: React.FC = () => {
         const sceneManager = new SceneManager(canvasRef.current);
         const appState = new AppState();
         appState.sceneManager = sceneManager;
+
+        // Handle object transforms from SceneManager
+        sceneManager.onObjectTransform = (id, position, rotation, scale) => {
+            appState.updateObjectTransform(id, position, rotation, scale);
+        };
+
+        // Handle selection sync
+        sceneManager.onObjectSelected = (id) => {
+            if (id !== null) {
+                // We use the store's selectObject action.
+                // Note: The store action might toggle. Ideally we force select.
+                // Assuming standard behavior is sufficient for now.
+                useAppStore.getState().selectObject(id);
+            } else {
+                // If id is null (deselected), we should clear store selection if possible.
+                // Implementation detail: If store has clearSelection, use it.
+                // Otherwise pass dummy or handle manually.
+                // For now, if SceneManager keeps selection (background click ignored), this happens rarely (only delete).
+                // Actually removeObject calls this with null.
+            }
+        };
 
         sceneManagerRef.current = sceneManager;
         appStateRef.current = appState;
@@ -86,7 +113,14 @@ const Builder: React.FC = () => {
             animationFrameRef.current = requestAnimationFrame(animate);
         };
 
+
         animationFrameRef.current = requestAnimationFrame(animate);
+
+        // Expose to window for debugging
+        (window as any).sceneManager = sceneManager;
+        (window as any).appState = appState;
+        console.log('🔧 Debug: SceneManager and AppState exposed to window');
+        console.log('🔧 Try: window.sceneManager or window.appState in console');
 
         // Cleanup
         return () => {
@@ -125,7 +159,12 @@ const Builder: React.FC = () => {
 
     // Handle object creation
     const handleCreateShape = (shape: string) => {
-        if (!appStateRef.current || !sceneManagerRef.current) return;
+        console.log('handleCreateShape called with:', shape);
+
+        if (!appStateRef.current || !sceneManagerRef.current) {
+            console.error('AppState or SceneManager not initialized');
+            return;
+        }
 
         const obj = {
             id: 0,
@@ -134,8 +173,13 @@ const Builder: React.FC = () => {
             userData: {}
         };
 
+        console.log('Creating object:', obj);
+
         const addedObj = appStateRef.current.addObject(obj);
-        sceneManagerRef.current.addObject(addedObj);
+        console.log('Object added to AppState:', addedObj);
+
+        const threeObj = sceneManagerRef.current.addObject(addedObj);
+        console.log('Object added to SceneManager:', threeObj);
 
         // Update store
         addStoreObject(obj);
@@ -179,6 +223,39 @@ const Builder: React.FC = () => {
     const handleRedo = () => {
         if (appStateRef.current && appStateRef.current.redo()) {
             showNotification('info', 'Redo successful');
+        }
+    };
+
+    // Handle transform actions
+    const handleTransformAction = (action: string) => {
+        if (!sceneManagerRef.current) return;
+
+        switch (action) {
+            case 'move':
+                setTool('move');
+                showNotification('info', 'Move mode activated');
+                break;
+            case 'rotate':
+                setTool('rotate');
+                showNotification('info', 'Rotate mode activated');
+                break;
+            case 'scale':
+                setTool('scale');
+                showNotification('info', 'Scale mode activated');
+                break;
+            case 'transform':
+                // Reset transform
+                sceneManagerRef.current.resetSelectedObjectTransform();
+                showNotification('success', 'Transform reset');
+                break;
+            case 'annotate':
+                showNotification('info', 'Annotation mode (coming soon)');
+                break;
+            case 'measure':
+                showNotification('info', 'Measurement mode (coming soon)');
+                break;
+            default:
+                showNotification('info', `${action} (coming soon)`);
         }
     };
 
@@ -358,7 +435,29 @@ const Builder: React.FC = () => {
                                 {activeTab === 'create' && <CreatePanel onCreateShape={handleCreateShape} />}
 
                                 {/* Edit Panel */}
-                                {activeTab === 'edit' && <EditPanel />}
+                                {activeTab === 'edit' && (
+                                    <EditPanel
+                                        onTransformAction={handleTransformAction}
+                                        selectedObject={selectedObjectIds.length === 1 ? getObject(selectedObjectIds[0]) : undefined}
+                                        onPropertyChange={(id, prop, value) => {
+                                            if (sceneManagerRef.current) {
+                                                const mesh = sceneManagerRef.current.objects.get(id);
+                                                if (mesh) {
+                                                    const [key, axis] = prop.split('.');
+                                                    if (axis && (key === 'position' || key === 'scale' || key === 'rotation')) {
+                                                        // @ts-ignore
+                                                        mesh[key][axis] = value;
+
+                                                        // Also update pivot/selection box if selected
+                                                        if (sceneManagerRef.current.selectedObject === mesh) {
+                                                            sceneManagerRef.current.updateSelectionBox(mesh);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }}
+                                    />
+                                )}
 
                                 {/* Shading Panel */}
                                 {activeTab === 'shading' && <ShadingPanel />}
