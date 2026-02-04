@@ -128,7 +128,7 @@ export class AppState {
     addObject(object: SceneObject): SceneObject {
         if (!object.id) object.id = this.generateId();
         this.sceneObjects.push(object);
-        this.saveHistory();
+        // History save is now debounced, not called here
         return object;
     }
 
@@ -213,8 +213,6 @@ export class AppState {
 
         // Sort keyframes by frame
         this.animation.tracks[objectId][property].sort((a, b) => a.frame - b.frame);
-
-        this.saveHistory();
     }
 
     removeKeyframe(objectId: number, property: string, frame: number): boolean {

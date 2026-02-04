@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+import { OrbitControls, TransformControls } from 'three-stdlib';
 import type { SceneObject } from '../types/builder.types';
 import { MeshFactory } from './MeshFactory';
 
@@ -35,7 +34,7 @@ export class SceneManager {
 
         // 1. Setup Scene
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x1a1a1a); // Dark background
+        this.scene.background = new THREE.Color(0xffffff); // White background
 
         // 2. Setup Camera
         const aspect = canvas.clientWidth / canvas.clientHeight;
@@ -85,15 +84,34 @@ export class SceneManager {
             }
         });
 
-        // WORKAROUND: Direct push to children because scene.add fails strict instanceof checks in some environments
-        this.scene.children.push(this.transformControls as any);
-        (this.transformControls as any).parent = this.scene;
+        // Customize gizmo colors - set all axes to black
+        const blackColor = new THREE.Color(0x000000);
+        if (this.transformControls.children && this.transformControls.children.length > 0) {
+            this.transformControls.children.forEach((gizmo: any) => {
+                if (gizmo.children) {
+                    gizmo.children.forEach((child: any) => {
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material.forEach((mat: any) => {
+                                    mat.color = blackColor.clone();
+                                });
+                            } else {
+                                child.material.color = blackColor.clone();
+                            }
+                        }
+                    });
+                }
+            });
+        }
+
+        this.scene.add(this.transformControls as unknown as THREE.Object3D);
 
         // 7. Helpers
         this.gridHelper = new THREE.GridHelper(20, 20, 0x888888, 0x444444);
         this.scene.add(this.gridHelper);
 
         this.axesHelper = new THREE.AxesHelper(5);
+        this.scene.add(this.axesHelper);
 
         // 8. Raycaster
         this.raycaster = new THREE.Raycaster();
@@ -148,6 +166,10 @@ export class SceneManager {
         this.addObject(obj);
     }
 
+    getObject(id: number): THREE.Object3D | undefined {
+        return this.objects.get(id);
+    }
+
     addObject(objData: SceneObject): void {
         const mesh = MeshFactory.createMesh(objData.type, objData.id, objData.name || 'Object');
         this.scene.add(mesh);
@@ -200,7 +222,7 @@ export class SceneManager {
         }
     }
 
-    updateObject(id: number, type: string, params: any): void {
+    updateObject(id: number, type: string, _params: any): void {
         const oldMesh = this.objects.get(id);
         if (oldMesh && oldMesh instanceof THREE.Mesh) {
             const newGeo = MeshFactory.createGeometry(type);
@@ -233,6 +255,29 @@ export class SceneManager {
         this.transformControls.setMode(mode);
     }
 
+    setCameraView(view: string): void {
+        const distance = 10;
+        switch (view) {
+            case 'front':
+                this.camera.position.set(0, 0, distance);
+                this.camera.lookAt(0, 0, 0);
+                break;
+            case 'side':
+                this.camera.position.set(distance, 0, 0);
+                this.camera.lookAt(0, 0, 0);
+                break;
+            case 'top':
+                this.camera.position.set(0, distance, 0);
+                this.camera.lookAt(0, 0, 0);
+                break;
+            case 'perspective':
+                this.camera.position.set(5, 5, 5);
+                this.camera.lookAt(0, 0, 0);
+                break;
+        }
+        this.controls.update();
+    }
+
     // REQUIRED by Builder.tsx
     setViewMode(mode: string): void {
         console.log('Set view mode:', mode);
@@ -241,13 +286,13 @@ export class SceneManager {
                 if (Array.isArray(obj.material)) {
                     obj.material.forEach(m => m.wireframe = (mode === 'wireframe'));
                 } else {
-                    (obj.material as THREE.Material).wireframe = (mode === 'wireframe');
+                    (obj.material as any).wireframe = (mode === 'wireframe');
                 }
             }
         });
     }
 
-    private updateSelectionBox(obj: THREE.Object3D) {
+    public updateSelectionBox(obj: THREE.Object3D) {
         if (this.selectionBox) this.scene.remove(this.selectionBox);
         this.selectionBox = new THREE.Box3Helper(new THREE.Box3().setFromObject(obj), 0xffff00);
         this.scene.add(this.selectionBox);

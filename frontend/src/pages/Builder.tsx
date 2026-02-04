@@ -1,7 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { SceneManager } from '../utils/SceneManager';
 import { AppState } from '../utils/AppState';
-import { useAppStore } from '../store/useAppStore';
+import {
+    useAppStore,
+    useActiveTool,
+    useViewMode,
+    useActiveTab,
+    useSelectedObjectIds,
+    useSceneObjects,
+    useIsLeftPanelCollapsed
+} from '../store/useAppStore';
+import { useScenePersistence } from '../hooks/useScenePersistence';
 import type { Tool, ViewMode, CameraView, NotificationType } from '../types/builder.types';
 import { CreatePanel } from '../components/builder/sidebar/CreatePanel';
 import { EditPanel } from '../components/builder/sidebar/EditPanel';
@@ -22,34 +31,34 @@ const Builder: React.FC = () => {
     const animationFrameRef = useRef<number>(0);
     const statsUpdateRef = useRef<number>(0);
 
-    // Zustand Store
-    const activeTab = useAppStore((state) => state.activeTab);
-    const selectedObjectIds = useAppStore((state) => state.selectedObjectIds);
-    const sceneObjects = useAppStore((state) => state.sceneObjects);
+    // Optimized Zustand Selectors - only re-render when these specific values change
+    const activeTab = useActiveTab();
+    const selectedObjectIds = useSelectedObjectIds();
+    const sceneObjects = useSceneObjects();
+    const activeTool = useActiveTool();
+    const viewMode = useViewMode();
+    const isLeftPanelCollapsed = useIsLeftPanelCollapsed();
 
-    // Helper to get object by ID
-    const getObject = (id: number) => sceneObjects.find(o => o.id === id);
-
-    const activeTool = useAppStore((state) => state.activeTool);
-    const viewMode = useAppStore((state) => state.viewMode);
-
-    const isLeftPanelCollapsed = useAppStore((state) => state.isLeftPanelCollapsed);
-    const objectCount = useAppStore((state) => state.sceneObjects.length);
+    // Computed values with useMemo
+    const objectCount = useMemo(() => sceneObjects.length, [sceneObjects.length]);
+    const getObject = useCallback((id: number) => sceneObjects.find(o => o.id === id), [sceneObjects]);
 
     // Stats (Managed locally to avoid store overhead on every frame, updated throttled)
     const [_stats, setStats] = useState({ triangles: 0, vertices: 0, fps: 0 });
-
     const [_statusMessage, setStatusMessage] = useState('Ready');
     const [notification, setNotification] = useState<{ type: NotificationType; message: string } | null>(null);
 
-    // Actions
+    // Auto-save hook
+    useScenePersistence(sceneManagerRef);
+
+    // Actions - Get from store state, won't cause re-renders
     const {
         setActiveTab,
         setTool,
         setViewMode: setStoreViewMode,
         toggleLeftPanel,
         addObject: addStoreObject
-    } = useAppStore.getState(); // Using getState() for actions to avoid re-renders if actions were to change (they don't usually)
+    } = useAppStore.getState();
 
     // Initialize Three.js scene
     useEffect(() => {
@@ -206,6 +215,32 @@ const Builder: React.FC = () => {
             sceneManagerRef.current.setCameraView(view);
         }
     };
+
+    // Handle delete selected objects
+    const handleDeleteSelected = useCallback(() => {
+        if (!sceneManagerRef.current || selectedObjectIds.length === 0) {
+            showNotification('warning', 'No objects selected to delete');
+            return;
+        }
+
+        const count = selectedObjectIds.length;
+
+        // Delete from all storage locations
+        selectedObjectIds.forEach(id => {
+            // 1. Remove from SceneManager (Three.js scene and Map)
+            sceneManagerRef.current?.removeObject(id);
+
+            // 2. Remove from Zustand store
+            useAppStore.getState().removeObject(id);
+
+            // 3. Remove from AppState
+            appStateRef.current?.removeObject(id);
+        });
+
+        // Backend will auto-sync via useScenePersistence hook
+        showNotification('success', `Deleted ${count} object(s)`);
+        setStatusMessage(`Deleted ${count} object(s)`);
+    }, [selectedObjectIds]);
 
     // Show notification
     const showNotification = (type: NotificationType, message: string) => {
@@ -370,6 +405,17 @@ const Builder: React.FC = () => {
                 </nav>
 
                 <div className="ml-auto flex items-center space-x-4">
+                    {/* Delete Button - Only visible when object is selected */}
+                    {selectedObjectIds.length > 0 && (
+                        <button
+                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                            onClick={handleDeleteSelected}
+                            title={`Delete ${selectedObjectIds.length} selected object(s)`}
+                        >
+                            <i className="fas fa-trash"></i>
+                            Delete ({selectedObjectIds.length})
+                        </button>
+                    )}
 
                     <button className="bg-richred hover:bg-richred-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all">
                         <i className="fas fa-cloud-upload-alt mr-2"></i>Export
