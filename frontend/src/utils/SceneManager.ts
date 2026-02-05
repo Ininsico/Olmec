@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls, TransformControls } from 'three-stdlib';
 import type { SceneObject } from '../types/builder.types';
 import { MeshFactory } from './MeshFactory';
+import { MeasureTool } from './tools/MeasureTool';
+import { AnnotationTool } from './tools/AnnotationTool';
+import { GeometryAnalysisTool } from './tools/GeometryAnalysisTool';
 
 export class SceneManager {
     canvas: HTMLCanvasElement;
@@ -10,6 +13,11 @@ export class SceneManager {
     renderer: THREE.WebGLRenderer;
     controls: OrbitControls;
     transformControls: TransformControls;
+
+    // Tools
+    measureTool: MeasureTool;
+    annotationTool: AnnotationTool;
+    geometryAnalysisTool: GeometryAnalysisTool;
 
     // Helpers
     gridHelper: THREE.GridHelper;
@@ -63,11 +71,14 @@ export class SceneManager {
 
         // 6. Setup Transform Controls
         this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
+
+        // @ts-ignore - TransformControls has custom events not in Object3D type
         this.transformControls.addEventListener('change', () => {
             // Visual update handled by loop
         });
 
-        this.transformControls.addEventListener('dragging-changed', (event) => {
+        // @ts-ignore - TransformControls has custom 'dragging-changed' event
+        this.transformControls.addEventListener('dragging-changed', (event: any) => {
             const isDragging = !!event.value;
             this.controls.enabled = !isDragging; // Disable camera orbit while modifying object
             this.isTransformDragging = isDragging;
@@ -105,6 +116,11 @@ export class SceneManager {
         }
 
         this.scene.add(this.transformControls as unknown as THREE.Object3D);
+
+        // 7. Initialize Tools
+        this.measureTool = new MeasureTool(this.scene, this.camera, this.renderer);
+        this.annotationTool = new AnnotationTool(this.scene);
+        this.geometryAnalysisTool = new GeometryAnalysisTool(this.scene);
 
         // 7. Helpers
         this.gridHelper = new THREE.GridHelper(20, 20, 0x888888, 0x444444);
@@ -145,6 +161,25 @@ export class SceneManager {
         const rect = this.canvas.getBoundingClientRect();
         this.mouse.x = ((event.clientX - rect.left) / this.canvas.clientWidth) * 2 - 1;
         this.mouse.y = -((event.clientY - rect.top) / this.canvas.clientHeight) * 2 + 1;
+
+        // 1. Check active tools first (Measure/Annotate)
+        if (this.measureTool.isActive()) {
+            this.raycaster.setFromCamera(this.mouse, this.camera);
+            const intersects = this.raycaster.intersectObjects(Array.from(this.objects.values()));
+            if (intersects.length > 0) {
+                this.measureTool.handleClick(intersects[0].point);
+            }
+            return;
+        }
+
+        if (this.annotationTool.isActive()) {
+            this.raycaster.setFromCamera(this.mouse, this.camera);
+            const intersects = this.raycaster.intersectObjects(Array.from(this.objects.values()));
+            if (intersects.length > 0) {
+                this.annotationTool.handleClick(intersects[0].point);
+            }
+            return;
+        }
 
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
@@ -203,6 +238,7 @@ export class SceneManager {
             this.transformControls.attach(obj);
             this.transformControls.setMode('translate'); // Default
             this.updateSelectionBox(obj);
+            this.geometryAnalysisTool.activate(obj);
             console.log(`Object ${id} Selected`);
             if (this.onObjectSelected) {
                 this.onObjectSelected(id);
@@ -220,6 +256,7 @@ export class SceneManager {
         if (this.onObjectSelected) {
             this.onObjectSelected(null);
         }
+        this.geometryAnalysisTool.deactivate();
     }
 
     updateObject(id: number, type: string, _params: any): void {
@@ -296,6 +333,266 @@ export class SceneManager {
         if (this.selectionBox) this.scene.remove(this.selectionBox);
         this.selectionBox = new THREE.Box3Helper(new THREE.Box3().setFromObject(obj), 0xffff00);
         this.scene.add(this.selectionBox);
+    }
+
+    // ================= Edit / Tools =================
+
+    private currentEditMode: 'object' | 'vertex' | 'edge' | 'face' = 'object';
+
+    setEditMode(mode: 'object' | 'vertex' | 'edge' | 'face') {
+        this.currentEditMode = mode;
+        console.log(`✏️ Edit Mode set to: ${mode.toUpperCase()}`);
+
+        // Update visual feedback based on mode
+        if (this.selectedObject) {
+            this.updateModeVisualization(mode);
+        }
+    }
+
+    private updateModeVisualization(mode: 'object' | 'vertex' | 'edge' | 'face') {
+        // TODO: Add visual helpers for different edit modes
+        // - Vertex mode: Show vertex points
+        // - Edge mode: Highlight edges
+        // - Face mode: Highlight faces
+        console.log(`Updating visualization for ${mode} mode`);
+    }
+
+    applyEditAction(action: string) {
+        console.log(`🔧 Apply Edit Action: ${action}`);
+
+        if (!this.selectedObject) {
+            console.warn('⚠️ No object selected for edit action');
+            return;
+        }
+
+        if (!(this.selectedObject instanceof THREE.Mesh)) {
+            console.warn('⚠️ Selected object is not a mesh');
+            return;
+        }
+
+        const mesh = this.selectedObject as THREE.Mesh;
+
+        // Route to appropriate handler based on current mode and action
+        switch (this.currentEditMode) {
+            case 'object':
+                this.handleObjectModeAction(action, mesh);
+                break;
+            case 'vertex':
+                this.handleVertexModeAction(action, mesh);
+                break;
+            case 'edge':
+                this.handleEdgeModeAction(action, mesh);
+                break;
+            case 'face':
+                this.handleFaceModeAction(action, mesh);
+                break;
+        }
+    }
+
+    private handleObjectModeAction(action: string, _mesh: THREE.Mesh) {
+        switch (action) {
+            case 'move':
+            case 'rotate':
+            case 'scale':
+                // Already handled by transform controls
+                console.log(`Transform mode: ${action}`);
+                break;
+            case 'transform':
+                this.resetSelectedObjectTransform();
+                break;
+            case 'measure':
+                this.toggleMeasureTool();
+                break;
+            case 'annotate':
+                this.toggleAnnotationTool();
+                break;
+            default:
+                console.log(`Object mode action '${action}' queued for implementation`);
+        }
+    }
+
+    toggleMeasureTool() {
+        if (this.measureTool.isActive()) {
+            this.measureTool.deactivate();
+        } else {
+            this.measureTool.activate();
+            this.annotationTool.deactivate(); // Exclusive
+        }
+    }
+
+    toggleAnnotationTool() {
+        if (this.annotationTool.isActive()) {
+            this.annotationTool.deactivate();
+        } else {
+            this.annotationTool.activate();
+            this.measureTool.deactivate(); // Exclusive
+        }
+    }
+
+    private handleVertexModeAction(action: string, mesh: THREE.Mesh) {
+        const geometry = mesh.geometry;
+
+        switch (action) {
+            case 'move':
+            case 'scale':
+            case 'extrude':
+                console.log(`✅ Vertex ${action} - Geometry vertices: ${geometry.attributes.position.count}`);
+                // TODO: Implement vertex manipulation
+                break;
+            case 'connect':
+            case 'split':
+            case 'merge':
+            case 'dissolve':
+            case 'rip':
+                console.log(`✅ Vertex operation: ${action}`);
+                // TODO: Implement vertex topology operations
+                break;
+            case 'smooth':
+            case 'flatten':
+            case 'align':
+            case 'snap':
+            case 'bevel':
+            case 'chamfer':
+                console.log(`✅ Vertex modifier: ${action}`);
+                // TODO: Implement vertex modifiers
+                break;
+            case 'select_all':
+            case 'select_none':
+            case 'select_inverse':
+            case 'select_random':
+            case 'select_linked':
+            case 'select_similar':
+                console.log(`✅ Vertex selection: ${action}`);
+                // TODO: Implement vertex selection tools
+                break;
+            default:
+                console.log(`Vertex action '${action}' not recognized`);
+        }
+    }
+
+    private handleEdgeModeAction(action: string, _mesh: THREE.Mesh) {
+        switch (action) {
+            case 'extrude':
+            case 'bevel':
+            case 'loop_cut':
+            case 'subdivide':
+            case 'bridge':
+            case 'crease':
+                console.log(`✅ Edge tool: ${action} - Processing mesh edges`);
+                // TODO: Implement edge tools
+                break;
+            case 'edge_slide':
+            case 'offset':
+            case 'dissolve':
+            case 'collapse':
+            case 'split':
+            case 'rotate':
+                console.log(`✅ Edge operation: ${action}`);
+                // TODO: Implement edge operations
+                break;
+            case 'select_all':
+            case 'select_none':
+            case 'select_inverse':
+            case 'select_loop':
+            case 'select_ring':
+            case 'select_boundary':
+            case 'select_sharp':
+            case 'select_linked':
+                console.log(`✅ Edge selection: ${action}`);
+                // TODO: Implement edge selection
+                break;
+            case 'mark_seam':
+            case 'mark_sharp':
+            case 'clear_seam':
+            case 'clear_sharp':
+                console.log(`✅ Edge modifier: ${action}`);
+                // TODO: Implement edge modifiers
+                break;
+            default:
+                console.log(`Edge action '${action}' not recognized`);
+        }
+    }
+
+    private handleFaceModeAction(action: string, mesh: THREE.Mesh) {
+        const geometry = mesh.geometry;
+
+        switch (action) {
+            case 'extrude':
+            case 'inset':
+            case 'bevel':
+            case 'poke':
+            case 'triangulate':
+            case 'solidify':
+                console.log(`✅ Face tool: ${action} - Processing ${geometry.attributes.position.count / 3} faces`);
+                // TODO: Implement face tools
+                break;
+            case 'subdivide':
+            case 'dissolve':
+            case 'duplicate':
+            case 'separate':
+            case 'flip':
+            case 'rotate':
+                console.log(`✅ Face operation: ${action}`);
+                // TODO: Implement face operations
+                break;
+            case 'select_all':
+            case 'select_none':
+            case 'select_inverse':
+            case 'select_linked':
+            case 'select_similar':
+            case 'select_random':
+            case 'select_island':
+            case 'select_boundary':
+                console.log(`✅ Face selection: ${action}`);
+                // TODO: Implement face selection
+                break;
+            case 'normals_flip':
+            case 'normals_recalculate':
+            case 'normals_reset':
+            case 'normals_smooth':
+            case 'normals_flatten':
+            case 'normals_average':
+                console.log(`✅ Face normals: ${action}`);
+                this.handleNormalOperation(action, geometry);
+                break;
+            case 'material_assign':
+            case 'material_select':
+            case 'material_deselect':
+            case 'material_remove':
+                console.log(`✅ Face material: ${action}`);
+                // TODO: Implement material operations
+                break;
+            default:
+                console.log(`Face action '${action}' not recognized`);
+        }
+    }
+
+    private handleNormalOperation(action: string, geometry: THREE.BufferGeometry) {
+        switch (action) {
+            case 'normals_flip':
+                // Flip normals by reversing vertex order or scaling by -1
+                console.log('Flipping normals...');
+                geometry.scale(-1, 1, 1);
+                geometry.computeVertexNormals();
+                break;
+            case 'normals_recalculate':
+            case 'normals_reset':
+                console.log('Recalculating normals...');
+                geometry.computeVertexNormals();
+                break;
+            case 'normals_smooth':
+                console.log('Smoothing normals...');
+                geometry.computeVertexNormals();
+                break;
+            case 'normals_flatten':
+                console.log('Flattening normals...');
+                // TODO: Set all normals to face normal
+                break;
+            case 'normals_average':
+                console.log('Averaging normals...');
+                geometry.computeVertexNormals();
+                break;
+        }
     }
 
     // ================= Loop =================

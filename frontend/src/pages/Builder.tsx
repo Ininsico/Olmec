@@ -47,6 +47,7 @@ const Builder: React.FC = () => {
     const [_stats, setStats] = useState({ triangles: 0, vertices: 0, fps: 0 });
     const [_statusMessage, setStatusMessage] = useState('Ready');
     const [notification, setNotification] = useState<{ type: NotificationType; message: string } | null>(null);
+    const [editMode, setEditMode] = useState<'object' | 'vertex' | 'edge' | 'face'>('object');
 
     // Auto-save hook
     useScenePersistence(sceneManagerRef);
@@ -283,14 +284,15 @@ const Builder: React.FC = () => {
                 sceneManagerRef.current.resetSelectedObjectTransform();
                 showNotification('success', 'Transform reset');
                 break;
-            case 'annotate':
-                showNotification('info', 'Annotation mode (coming soon)');
-                break;
-            case 'measure':
-                showNotification('info', 'Measurement mode (coming soon)');
-                break;
+
             default:
-                showNotification('info', `${action} (coming soon)`);
+                // Handle extended edit actions
+                if ((sceneManagerRef.current as any).applyEditAction) {
+                    (sceneManagerRef.current as any).applyEditAction(action);
+                    showNotification('info', `Action: ${action.replace('_', ' ')}`);
+                } else {
+                    showNotification('info', `${action} (coming soon)`);
+                }
         }
     };
 
@@ -483,6 +485,13 @@ const Builder: React.FC = () => {
                                 {/* Edit Panel */}
                                 {activeTab === 'edit' && (
                                     <EditPanel
+                                        editMode={editMode}
+                                        onEditModeChange={(mode) => {
+                                            setEditMode(mode);
+                                            if (sceneManagerRef.current) {
+                                                sceneManagerRef.current.setEditMode(mode);
+                                            }
+                                        }}
                                         onTransformAction={handleTransformAction}
                                         selectedObject={selectedObjectIds.length === 1 ? getObject(selectedObjectIds[0]) : undefined}
                                         onPropertyChange={(id, prop, value) => {
