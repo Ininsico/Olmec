@@ -5,6 +5,10 @@ import { MeshFactory } from './MeshFactory';
 import { MeasureTool } from './tools/MeasureTool';
 import { AnnotationTool } from './tools/AnnotationTool';
 import { GeometryAnalysisTool } from './tools/GeometryAnalysisTool';
+import { VertexOperations } from './geometry/VertexOperations';
+import { EdgeOperations } from './geometry/EdgeOperations';
+import { FaceOperations } from './geometry/FaceOperations';
+import { SculptManager } from './sculpting/SculptManager';
 
 export class SceneManager {
     canvas: HTMLCanvasElement;
@@ -18,6 +22,7 @@ export class SceneManager {
     measureTool: MeasureTool;
     annotationTool: AnnotationTool;
     geometryAnalysisTool: GeometryAnalysisTool;
+    sculptManager: SculptManager;
 
     // Helpers
     gridHelper: THREE.GridHelper;
@@ -121,6 +126,7 @@ export class SceneManager {
         this.measureTool = new MeasureTool(this.scene, this.camera, this.renderer);
         this.annotationTool = new AnnotationTool(this.scene);
         this.geometryAnalysisTool = new GeometryAnalysisTool(this.scene);
+        this.sculptManager = new SculptManager();
 
         // 7. Helpers
         this.gridHelper = new THREE.GridHelper(20, 20, 0x888888, 0x444444);
@@ -430,168 +436,339 @@ export class SceneManager {
     }
 
     private handleVertexModeAction(action: string, mesh: THREE.Mesh) {
-        const geometry = mesh.geometry;
+        const geometry = mesh.geometry as THREE.BufferGeometry;
 
-        switch (action) {
-            case 'move':
-            case 'scale':
-            case 'extrude':
-                console.log(`✅ Vertex ${action} - Geometry vertices: ${geometry.attributes.position.count}`);
-                // TODO: Implement vertex manipulation
-                break;
-            case 'connect':
-            case 'split':
-            case 'merge':
-            case 'dissolve':
-            case 'rip':
-                console.log(`✅ Vertex operation: ${action}`);
-                // TODO: Implement vertex topology operations
-                break;
-            case 'smooth':
-            case 'flatten':
-            case 'align':
-            case 'snap':
-            case 'bevel':
-            case 'chamfer':
-                console.log(`✅ Vertex modifier: ${action}`);
-                // TODO: Implement vertex modifiers
-                break;
-            case 'select_all':
-            case 'select_none':
-            case 'select_inverse':
-            case 'select_random':
-            case 'select_linked':
-            case 'select_similar':
-                console.log(`✅ Vertex selection: ${action}`);
-                // TODO: Implement vertex selection tools
-                break;
-            default:
-                console.log(`Vertex action '${action}' not recognized`);
+        // For demo purposes, select all vertices. In production, you'd track selected vertices
+        const selectedVertices = VertexOperations.selectAll(geometry);
+
+        try {
+            let newGeometry: THREE.BufferGeometry | null = null;
+
+            switch (action) {
+                case 'move':
+                    // Move vertices by small offset (would be interactive in production)
+                    newGeometry = VertexOperations.moveVertices(
+                        geometry,
+                        selectedVertices,
+                        new THREE.Vector3(0.1, 0, 0)
+                    );
+                    console.log('✅ Vertices moved');
+                    break;
+
+                case 'scale':
+                    newGeometry = VertexOperations.scaleVertices(geometry, selectedVertices, 1.1);
+                    console.log('✅ Vertices scaled');
+                    break;
+
+                case 'extrude':
+                    newGeometry = VertexOperations.extrudeVertices(geometry, selectedVertices, 0.2);
+                    console.log('✅ Vertices extruded');
+                    break;
+
+                case 'merge':
+                    newGeometry = VertexOperations.mergeVertices(geometry, 0.01);
+                    console.log('✅ Vertices merged');
+                    break;
+
+                case 'smooth':
+                    newGeometry = VertexOperations.smoothVertices(geometry, selectedVertices, 2, 0.5);
+                    console.log('✅ Vertices smoothed');
+                    break;
+
+                case 'flatten':
+                    newGeometry = VertexOperations.flattenVertices(geometry, selectedVertices, 'z');
+                    console.log('✅ Vertices flattened');
+                    break;
+
+                case 'align':
+                    newGeometry = VertexOperations.alignVertices(geometry, selectedVertices, 'y', 0);
+                    console.log('✅ Vertices aligned');
+                    break;
+
+                case 'snap':
+                    newGeometry = VertexOperations.snapVertices(geometry, selectedVertices, 0.5);
+                    console.log('✅ Vertices snapped to grid');
+                    break;
+
+                case 'bevel':
+                    newGeometry = VertexOperations.bevelVertices(geometry, selectedVertices, 0.1);
+                    console.log('✅ Vertices beveled');
+                    break;
+
+                case 'select_all':
+                    console.log(`✅ Selected ${VertexOperations.selectAll(geometry).length} vertices`);
+                    break;
+
+                case 'select_random':
+                    const random = VertexOperations.selectRandom(geometry, 0.5);
+                    console.log(`✅ Selected ${random.length} random vertices`);
+                    break;
+
+                case 'select_linked':
+                    if (selectedVertices.length > 0) {
+                        const linked = VertexOperations.selectLinked(geometry, selectedVertices[0]);
+                        console.log(`✅ Selected ${linked.length} linked vertices`);
+                    }
+                    break;
+
+                default:
+                    console.log(`Vertex action '${action}' not yet implemented`);
+                    return;
+            }
+
+            // Apply new geometry if operation created one
+            if (newGeometry) {
+                mesh.geometry.dispose();
+                mesh.geometry = newGeometry;
+                this.updateSelectionBox(mesh);
+            }
+        } catch (error) {
+            console.error(`Error in vertex operation '${action}':`, error);
         }
     }
 
-    private handleEdgeModeAction(action: string, _mesh: THREE.Mesh) {
-        switch (action) {
-            case 'extrude':
-            case 'bevel':
-            case 'loop_cut':
-            case 'subdivide':
-            case 'bridge':
-            case 'crease':
-                console.log(`✅ Edge tool: ${action} - Processing mesh edges`);
-                // TODO: Implement edge tools
-                break;
-            case 'edge_slide':
-            case 'offset':
-            case 'dissolve':
-            case 'collapse':
-            case 'split':
-            case 'rotate':
-                console.log(`✅ Edge operation: ${action}`);
-                // TODO: Implement edge operations
-                break;
-            case 'select_all':
-            case 'select_none':
-            case 'select_inverse':
-            case 'select_loop':
-            case 'select_ring':
-            case 'select_boundary':
-            case 'select_sharp':
-            case 'select_linked':
-                console.log(`✅ Edge selection: ${action}`);
-                // TODO: Implement edge selection
-                break;
-            case 'mark_seam':
-            case 'mark_sharp':
-            case 'clear_seam':
-            case 'clear_sharp':
-                console.log(`✅ Edge modifier: ${action}`);
-                // TODO: Implement edge modifiers
-                break;
-            default:
-                console.log(`Edge action '${action}' not recognized`);
+    private handleEdgeModeAction(action: string, mesh: THREE.Mesh) {
+        const geometry = mesh.geometry as THREE.BufferGeometry;
+
+        try {
+            let newGeometry: THREE.BufferGeometry | null = null;
+
+            switch (action) {
+                case 'extrude':
+                    // Demo: extrude first edge
+                    const edges = EdgeOperations.selectBoundaryEdges(geometry);
+                    if (edges.length > 0) {
+                        newGeometry = EdgeOperations.extrudeEdges(geometry, edges.slice(0, 1), 0.2);
+                        console.log('✅ Edge extruded');
+                    }
+                    break;
+
+                case 'bevel':
+                    const bevelEdges = EdgeOperations.selectBoundaryEdges(geometry);
+                    if (bevelEdges.length > 0) {
+                        newGeometry = EdgeOperations.bevelEdges(geometry, bevelEdges.slice(0, 1), 0.1);
+                        console.log('✅ Edge beveled');
+                    }
+                    break;
+
+                case 'loop_cut':
+                case 'subdivide':
+                    newGeometry = EdgeOperations.subdivideEdges(geometry, 1);
+                    console.log('✅ Edges subdivided');
+                    break;
+
+                case 'bridge':
+                    console.log('✅ Edge bridge - requires two edge loops');
+                    break;
+
+                case 'crease':
+                    const creaseEdges = EdgeOperations.selectSharpEdges(geometry, 45);
+                    newGeometry = EdgeOperations.creaseEdge(geometry, creaseEdges, 1.0);
+                    console.log('✅ Edges creased');
+                    break;
+
+                case 'edge_slide':
+                    const slideEdges = EdgeOperations.selectBoundaryEdges(geometry);
+                    if (slideEdges.length > 0) {
+                        newGeometry = EdgeOperations.slideEdge(geometry, slideEdges[0], 0.1);
+                        console.log('✅ Edge slid');
+                    }
+                    break;
+
+                case 'dissolve':
+                    const dissolveEdges = EdgeOperations.selectBoundaryEdges(geometry);
+                    if (dissolveEdges.length > 0) {
+                        newGeometry = EdgeOperations.dissolveEdges(geometry, dissolveEdges.slice(0, 1));
+                        console.log('✅ Edges dissolved');
+                    }
+                    break;
+
+                case 'collapse':
+                    const collapseEdges = EdgeOperations.selectBoundaryEdges(geometry);
+                    if (collapseEdges.length > 0) {
+                        newGeometry = EdgeOperations.collapseEdge(geometry, collapseEdges[0]);
+                        console.log('✅ Edge collapsed');
+                    }
+                    break;
+
+                case 'select_boundary':
+                    const boundary = EdgeOperations.selectBoundaryEdges(geometry);
+                    console.log(`✅ Selected ${boundary.length} boundary edges`);
+                    break;
+
+                case 'select_sharp':
+                    const sharp = EdgeOperations.selectSharpEdges(geometry, 30);
+                    console.log(`✅ Selected ${sharp.length} sharp edges`);
+                    break;
+
+                case 'mark_seam':
+                    const seamEdges = EdgeOperations.selectBoundaryEdges(geometry);
+                    newGeometry = EdgeOperations.markSeam(geometry, seamEdges);
+                    console.log('✅ Edges marked as seam');
+                    break;
+
+                case 'mark_sharp':
+                    const sharpEdges = EdgeOperations.selectSharpEdges(geometry, 30);
+                    newGeometry = EdgeOperations.markSharp(geometry, sharpEdges);
+                    console.log('✅ Edges marked as sharp');
+                    break;
+
+                default:
+                    console.log(`Edge action '${action}' not yet implemented`);
+                    return;
+            }
+
+            // Apply new geometry if operation created one
+            if (newGeometry) {
+                mesh.geometry.dispose();
+                mesh.geometry = newGeometry;
+                this.updateSelectionBox(mesh);
+            }
+        } catch (error) {
+            console.error(`Error in edge operation '${action}':`, error);
         }
     }
 
     private handleFaceModeAction(action: string, mesh: THREE.Mesh) {
-        const geometry = mesh.geometry;
+        const geometry = mesh.geometry as THREE.BufferGeometry;
 
-        switch (action) {
-            case 'extrude':
-            case 'inset':
-            case 'bevel':
-            case 'poke':
-            case 'triangulate':
-            case 'solidify':
-                console.log(`✅ Face tool: ${action} - Processing ${geometry.attributes.position.count / 3} faces`);
-                // TODO: Implement face tools
-                break;
-            case 'subdivide':
-            case 'dissolve':
-            case 'duplicate':
-            case 'separate':
-            case 'flip':
-            case 'rotate':
-                console.log(`✅ Face operation: ${action}`);
-                // TODO: Implement face operations
-                break;
-            case 'select_all':
-            case 'select_none':
-            case 'select_inverse':
-            case 'select_linked':
-            case 'select_similar':
-            case 'select_random':
-            case 'select_island':
-            case 'select_boundary':
-                console.log(`✅ Face selection: ${action}`);
-                // TODO: Implement face selection
-                break;
-            case 'normals_flip':
-            case 'normals_recalculate':
-            case 'normals_reset':
-            case 'normals_smooth':
-            case 'normals_flatten':
-            case 'normals_average':
-                console.log(`✅ Face normals: ${action}`);
-                this.handleNormalOperation(action, geometry);
-                break;
-            case 'material_assign':
-            case 'material_select':
-            case 'material_deselect':
-            case 'material_remove':
-                console.log(`✅ Face material: ${action}`);
-                // TODO: Implement material operations
-                break;
-            default:
-                console.log(`Face action '${action}' not recognized`);
-        }
-    }
+        try {
+            let newGeometry: THREE.BufferGeometry | null = null;
 
-    private handleNormalOperation(action: string, geometry: THREE.BufferGeometry) {
-        switch (action) {
-            case 'normals_flip':
-                // Flip normals by reversing vertex order or scaling by -1
-                console.log('Flipping normals...');
-                geometry.scale(-1, 1, 1);
-                geometry.computeVertexNormals();
-                break;
-            case 'normals_recalculate':
-            case 'normals_reset':
-                console.log('Recalculating normals...');
-                geometry.computeVertexNormals();
-                break;
-            case 'normals_smooth':
-                console.log('Smoothing normals...');
-                geometry.computeVertexNormals();
-                break;
-            case 'normals_flatten':
-                console.log('Flattening normals...');
-                // TODO: Set all normals to face normal
-                break;
-            case 'normals_average':
-                console.log('Averaging normals...');
-                geometry.computeVertexNormals();
-                break;
+            // For demo purposes, select all faces. In production, you'd track selected faces
+            const allFaces = FaceOperations.selectAll(geometry);
+
+            switch (action) {
+                case 'extrude':
+                    // Demo: extrude first few faces
+                    const facesToExtrude = allFaces.slice(0, Math.min(2, allFaces.length));
+                    newGeometry = FaceOperations.extrudeFaces(geometry, facesToExtrude, 0.3);
+                    console.log('✅ Faces extruded');
+                    break;
+
+                case 'inset':
+                    const facesToInset = allFaces.slice(0, Math.min(2, allFaces.length));
+                    newGeometry = FaceOperations.insetFaces(geometry, facesToInset, 0.2);
+                    console.log('✅ Faces inset');
+                    break;
+
+                case 'bevel':
+                    const facesToBevel = allFaces.slice(0, Math.min(2, allFaces.length));
+                    newGeometry = FaceOperations.bevelFaces(geometry, facesToBevel, 0.15);
+                    console.log('✅ Faces beveled');
+                    break;
+
+                case 'poke':
+                    const facesToPoke = allFaces.slice(0, Math.min(3, allFaces.length));
+                    newGeometry = FaceOperations.pokeFaces(geometry, facesToPoke);
+                    console.log('✅ Faces poked');
+                    break;
+
+                case 'triangulate':
+                    newGeometry = FaceOperations.triangulateFaces(geometry);
+                    console.log('✅ Faces triangulated');
+                    break;
+
+                case 'solidify':
+                    newGeometry = FaceOperations.solidifyFaces(geometry, 0.1);
+                    console.log('✅ Mesh solidified');
+                    break;
+
+                case 'subdivide':
+                    const facesToSubdivide = allFaces.slice(0, Math.min(4, allFaces.length));
+                    newGeometry = FaceOperations.subdivideFaces(geometry, facesToSubdivide);
+                    console.log('✅ Faces subdivided');
+                    break;
+
+                case 'dissolve':
+                    const facesToDissolve = allFaces.slice(0, 1);
+                    newGeometry = FaceOperations.dissolveFaces(geometry, facesToDissolve);
+                    console.log('✅ Faces dissolved');
+                    break;
+
+                case 'duplicate':
+                    const facesToDuplicate = allFaces.slice(0, Math.min(2, allFaces.length));
+                    newGeometry = FaceOperations.duplicateFaces(geometry, facesToDuplicate);
+                    console.log('✅ Faces duplicated');
+                    break;
+
+                case 'flip':
+                case 'normals_flip':
+                    const facesToFlip = allFaces.slice(0, Math.min(3, allFaces.length));
+                    newGeometry = FaceOperations.flipFaceNormals(geometry, facesToFlip);
+                    console.log('✅ Face normals flipped');
+                    break;
+
+                case 'normals_recalculate':
+                case 'normals_reset':
+                    newGeometry = FaceOperations.recalculateNormals(geometry);
+                    console.log('✅ Normals recalculated');
+                    break;
+
+                case 'normals_smooth':
+                    newGeometry = FaceOperations.smoothNormals(geometry);
+                    console.log('✅ Normals smoothed');
+                    break;
+
+                case 'normals_flatten':
+                    newGeometry = FaceOperations.flattenNormals(geometry);
+                    console.log('✅ Normals flattened');
+                    break;
+
+                case 'normals_average':
+                    newGeometry = FaceOperations.smoothNormals(geometry);
+                    console.log('✅ Normals averaged');
+                    break;
+
+                case 'select_all':
+                    console.log(`✅ Selected ${allFaces.length} faces`);
+                    break;
+
+                case 'select_random':
+                    const random = FaceOperations.selectRandom(geometry, 0.5);
+                    console.log(`✅ Selected ${random.length} random faces`);
+                    break;
+
+                case 'select_linked':
+                    if (allFaces.length > 0) {
+                        const linked = FaceOperations.selectLinked(geometry, allFaces[0]);
+                        console.log(`✅ Selected ${linked.length} linked faces`);
+                    }
+                    break;
+
+                case 'select_boundary':
+                    const boundary = FaceOperations.selectBoundary(geometry);
+                    console.log(`✅ Selected ${boundary.length} boundary faces`);
+                    break;
+
+                case 'separate':
+                    const facesToSeparate = allFaces.slice(0, Math.min(2, allFaces.length));
+                    const result = FaceOperations.separateFaces(geometry, facesToSeparate);
+                    newGeometry = result.main;
+                    console.log('✅ Faces separated into new object');
+                    // Note: result.separated would need to be added as a new object
+                    break;
+
+                case 'material_assign':
+                case 'material_select':
+                case 'material_deselect':
+                case 'material_remove':
+                    console.log(`✅ Material operation: ${action} (requires material system)`);
+                    break;
+
+                default:
+                    console.log(`Face action '${action}' not yet implemented`);
+                    return;
+            }
+
+            // Apply new geometry if operation created one
+            if (newGeometry) {
+                mesh.geometry.dispose();
+                mesh.geometry = newGeometry;
+                this.updateSelectionBox(mesh);
+            }
+        } catch (error) {
+            console.error(`Error in face operation '${action}':`, error);
         }
     }
 

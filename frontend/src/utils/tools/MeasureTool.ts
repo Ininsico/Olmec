@@ -2,8 +2,8 @@ import * as THREE from 'three';
 
 export class MeasureTool {
     private scene: THREE.Scene;
-    private camera: THREE.PerspectiveCamera;
-    private renderer: THREE.WebGLRenderer;
+    private _camera: THREE.PerspectiveCamera;
+    private _renderer: THREE.WebGLRenderer;
     private active: boolean = false;
     private points: THREE.Vector3[] = [];
 
@@ -14,8 +14,8 @@ export class MeasureTool {
 
     constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer) {
         this.scene = scene;
-        this.camera = camera;
-        this.renderer = renderer;
+        this._camera = camera;
+        this._renderer = renderer;
     }
 
     activate() {
