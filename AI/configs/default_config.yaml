@@ -1,0 +1,45 @@
+# Olmec 3D Configuration - Research Grade Parameters
+
+model:
+  name: "Olmec-LGM-v1"
+  encoder:
+    name: "facebook/dinov2-large"
+    freeze_blocks: 12
+  transformer:
+    dim: 1024
+    n_layers: 24
+    n_heads: 16
+    cross_view: true
+    n_views: 4
+  gaussian_head:
+    n_gaussians: 16384
+    feat_dim: 80
+
+data:
+  dataset: "objaverse-xl"
+  resolution: 512
+  batch_size: 16
+  num_workers: 8
+  augmentations:
+    random_lighting: true
+    random_background: true
+    camera_jitter: 0.1
+
+training:
+  precision: "bf16"
+  learning_rate: 4e-4
+  min_lr: 1e-6
+  warmup_steps: 2000
+  total_steps: 500000
+  save_freq: 5000
+  val_freq: 1000
+  losses:
+    rgb_weight: 1.0
+    depth_weight: 0.5
+    eikonal_weight: 0.1
+    laplacian_weight: 0.05
+
+post_processing:
+  decimation_factor: 0.2
+  smooth_iterations: 3
+  export_formats: ["glb", "obj", "usdz"]

@@ -67,7 +67,7 @@ const TechStack: React.FC = () => {
     return (
         <section
             ref={ref}
-            className="relative w-full py-12 md:py-32 bg-cream-50"
+            className="relative w-full py-12 md:py-32 bg-black"
         >
             <div className="container mx-auto px-6 lg:px-12 relative z-10">
                 <motion.div
@@ -81,13 +81,13 @@ const TechStack: React.FC = () => {
                         <span className="text-sm font-semibold tracking-widest text-richred-700 uppercase mb-4 block">
                             The Architecture
                         </span>
-                        <h2 className="text-4xl md:text-6xl font-bold text-slate-900 mb-6 leading-tight tracking-tight">
+                        <h2 className="text-4xl md:text-6xl font-bold text-white mb-6 leading-tight tracking-tight">
                             Blender power. <br />
-                            <span className="font-serif italic font-normal text-richred-700">
+                            <span className="font-serif italic font-normal text-white">
                                 Browser accessibility.
                             </span>
                         </h2>
-                        <p className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
+                        <p className="text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed">
                             Passion shouldn't be gated by hardware. We're rebuilding the 3D pipeline to run on any device, anywhere.
                         </p>
                     </motion.div>
@@ -122,13 +122,13 @@ const TechStack: React.FC = () => {
                                 <span className="text-xs font-semibold tracking-widest text-richred-700 uppercase mb-2 block">
                                     The Architecture
                                 </span>
-                                <h2 className="text-3xl font-bold text-slate-900 mb-4 leading-tight">
+                                <h2 className="text-3xl font-bold text-white mb-4 leading-tight">
                                     Blender power. <br />
-                                    <span className="font-serif italic font-normal text-richred-700">
+                                    <span className="font-serif italic font-normal text-white">
                                         Browser accessibility.
                                     </span>
                                 </h2>
-                                <p className="text-sm text-slate-600 leading-relaxed">
+                                <p className="text-sm text-slate-300 leading-relaxed">
                                     Rebuilding the 3D pipeline for any device.
                                 </p>
                             </div>

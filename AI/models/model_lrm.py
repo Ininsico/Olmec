@@ -1,0 +1,56 @@
+import torch
+import torch.nn as nn
+import numpy as np
+from skimage import measure
+from .encoder import VisionEncoder
+from .transformer import OlmecTransformer
+from .renderer import GS, SDFVol
+from .displacement import Disp
+
+class OlmecLRM(nn.Module):
+    def __init__(self, e=1024, h=16, l=48, v=4):
+        super().__init__()
+        self.v = v
+        self.enc = VisionEncoder()
+        self.pr = nn.Linear(self.enc.embed_dim, e)
+        self.tr = OlmecTransformer(d=e, h=h, l=l)
+        self.gs = GS(i=e)
+        self.sv = SDFVol(e=e)
+        self.rf = Disp(e=e)
+        self.gt = nn.Parameter(torch.randn(1, 1, e))
+
+    def forward(self, i, c=None, ds=False):
+        B, V, C, H, W = i.shape
+        f = self.enc(i.reshape(B*V, C, H, W))
+        x = self.pr(f).reshape(B, V*f.shape[1], -1)
+        k = torch.cat([self.gt.expand(B, -1, -1), x], 1)
+        r = self.tr(k, rh=ds)
+        lt, il = r if ds else (r, None)
+        ctx = lt[:, 0:1]
+        g = self.gs(lt[:, 1:])
+        res = {"gs": g, "ctx": ctx}
+        if il: res["aux"] = [h[:, 0:1] for i, h in enumerate(il) if i % 12 == 0 and i > 0]
+        if c is not None:
+            s, rgb = self.sv(c, ctx.expand(-1, c.size(1), -1))
+            sr = s + self.rf(c, ctx)
+            res.update({"sdf": s, "sdf_r": sr, "rgb": rgb})
+        return res
+
+    @torch.no_grad()
+    def generate(self, i, res=128, t=0.0):
+        B, V, C, H, W = i.shape
+        d = i.device
+        f = self.enc(i.reshape(B*V, C, H, W))
+        x = self.pr(f).reshape(B, V*f.shape[1], -1)
+        tks = self.gt.expand(B, -1, -1)
+        lt = self.tr(torch.cat([tks, x], 1))
+        ctx = lt[:, 0:1]
+        g = torch.stack(torch.meshgrid(torch.linspace(-1,1,res),torch.linspace(-1,1,res),torch.linspace(-1,1,res),indexing='ij'),-1).to(d).reshape(1,-1,3)
+        sv = []
+        for j in range(0, g.shape[1], 65536):
+            ck = g[:, j:j+65536]
+            s, _ = self.sv(ck, ctx.expand(-1, ck.size(1), -1))
+            sv.append(s + self.rf(ck, ctx))
+        sg = torch.cat(sv, 1).reshape(res, res, res).cpu().numpy()
+        v, f, n, val = measure.marching_cubes(sg, level=t)
+        return (v / (res-1)) * 2 - 1, f

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, ArrowRight, Github } from 'lucide-react';
+import { User, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { authAPI } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,6 +17,7 @@ const Signup: React.FC = () => {
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -50,13 +51,7 @@ const Signup: React.FC = () => {
         }
     };
 
-    const handleGoogleAuth = () => {
-        authAPI.googleAuth();
-    };
 
-    const handleGithubAuth = () => {
-        authAPI.githubAuth();
-    };
 
     return (
         <div className="min-h-screen flex bg-white">
@@ -121,15 +116,22 @@ const Signup: React.FC = () => {
                                     <Lock size={18} />
                                 </div>
                                 <input
-                                    type="password"
+                                    type={showPassword ? "text" : "password"}
                                     name="password"
                                     value={formData.password}
                                     onChange={handleChange}
                                     required
                                     minLength={8}
-                                    className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-richred-500/20 focus:border-richred-500 transition-all text-slate-900 placeholder:text-slate-400"
+                                    className="w-full pl-10 pr-12 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-richred-500/20 focus:border-richred-500 transition-all text-slate-900 placeholder:text-slate-400"
                                     placeholder="Create a password"
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                                >
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
                             </div>
                             <p className="text-xs text-slate-500 mt-1">Must be at least 8 characters.</p>
                         </div>
@@ -149,35 +151,7 @@ const Signup: React.FC = () => {
                         </Button>
                     </form>
 
-                    <div className="mt-8">
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center">
-                                <div className="w-full border-t border-slate-200"></div>
-                            </div>
-                            <div className="relative flex justify-center text-sm">
-                                <span className="px-2 bg-cream-50 text-slate-500">Or sign up with</span>
-                            </div>
-                        </div>
 
-                        <div className="mt-6 grid grid-cols-2 gap-4">
-                            <button
-                                type="button"
-                                onClick={handleGithubAuth}
-                                className="flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 transition-colors text-slate-700 font-medium"
-                            >
-                                <Github size={20} />
-                                GitHub
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleGoogleAuth}
-                                className="flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 transition-colors text-slate-700 font-medium"
-                            >
-                                <span className="font-bold text-lg">G</span>
-                                Google
-                            </button>
-                        </div>
-                    </div>
 
                     <p className="mt-8 text-center text-sm text-slate-500">
                         Already have an account?{' '}
