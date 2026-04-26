@@ -11,7 +11,6 @@ class HashGrid(nn.Module):
         self.p = nn.ParameterList([nn.Parameter(torch.empty(t_size, f).uniform_(-1e-4, 1e-4)) for _ in range(l)])
 
     def forward(self, x):
-        # x: [B, N, 3] in [-1, 1]
         x = (x + 1) / 2
         o = []
         for i in range(self.l):
@@ -20,42 +19,33 @@ class HashGrid(nn.Module):
             v_0 = v.long()
             v_1 = v_0 + 1
             w = v - v_0
-            # Hashing logic
-            h_0 = self._hash(v_0, r)
-            h_1 = self._hash(v_1, r)
-            # Tri-linear interpolation
-            f = self._interp(h_0, h_1, w, self.p[i])
+            h_0 = self._hash(v_0)
+            h_1 = self._hash(v_1)
+            f = self._interp(v_0, v_1, w, self.p[i])
             o.append(f)
         return torch.cat(o, -1)
 
-    def _hash(self, v, r):
+    def _hash(self, v):
         p = [1, 2654435761, 805459861]
         h = (v[..., 0] * p[0]) ^ (v[..., 1] * p[1]) ^ (v[..., 2] * p[2])
         return h % self.t_size
 
     def _interp(self, v_0, v_1, w, p):
-        # Full 8-corner Trilinear Interpolation
-        # corners: 000, 001, 010, 011, 100, 101, 110, 111
-        v000 = self._hash(v_0, 0)
-        v001 = self._hash(torch.stack([v_0[...,0], v_0[...,1], v_1[...,2]], -1), 0)
-        v010 = self._hash(torch.stack([v_0[...,0], v_1[...,1], v_0[...,2]], -1), 0)
-        v011 = self._hash(torch.stack([v_0[...,0], v_1[...,1], v_1[...,2]], -1), 0)
-        v100 = self._hash(torch.stack([v_1[...,0], v_0[...,1], v_0[...,2]], -1), 0)
-        v101 = self._hash(torch.stack([v_1[...,0], v_0[...,1], v_1[...,2]], -1), 0)
-        v110 = self._hash(torch.stack([v_1[...,0], v_1[...,1], v_0[...,2]], -1), 0)
-        v111 = self._hash(v_1, 0)
-
+        v000 = self._hash(v_0)
+        v001 = self._hash(torch.stack([v_0[...,0], v_0[...,1], v_1[...,2]], -1))
+        v010 = self._hash(torch.stack([v_0[...,0], v_1[...,1], v_0[...,2]], -1))
+        v011 = self._hash(torch.stack([v_0[...,0], v_1[...,1], v_1[...,2]], -1))
+        v100 = self._hash(torch.stack([v_1[...,0], v_0[...,1], v_0[...,2]], -1))
+        v101 = self._hash(torch.stack([v_1[...,0], v_0[...,1], v_1[...,2]], -1))
+        v110 = self._hash(torch.stack([v_1[...,0], v_1[...,1], v_0[...,2]], -1))
+        v111 = self._hash(v_1)
         f000, f001, f010, f011 = p[v000], p[v001], p[v010], p[v011]
         f100, f101, f110, f111 = p[v100], p[v101], p[v110], p[v111]
-
         w_x, w_y, w_z = w[..., 0:1], w[..., 1:2], w[..., 2:3]
-        
         f00 = f000 * (1 - w_z) + f001 * w_z
         f01 = f010 * (1 - w_z) + f011 * w_z
         f10 = f100 * (1 - w_z) + f101 * w_z
         f11 = f110 * (1 - w_z) + f111 * w_z
-        
         f0 = f00 * (1 - w_y) + f01 * w_y
         f1 = f10 * (1 - w_y) + f11 * w_y
-        
         return f0 * (1 - w_x) + f1 * w_x

@@ -28,7 +28,7 @@ def main(image_path, model_path=None):
     # Generate 3D Data
     print("Generating 3D model...")
     with torch.no_grad():
-        v, f = model.generate_mesh(input_tensor, resolution=128)
+        v, f = model.generate(input_tensor, res=128)
 
     # Extract & Save Mesh
     from utils.mesh import MeshEngine
@@ -41,11 +41,19 @@ def main(image_path, model_path=None):
     engine.export(output_file)
     print(f"Success! SOTA Model saved to {output_file}")
 
+    # Elite Refinement Step
+    if args.refine:
+        from tools.refiner import SuperRefiner
+        print("Launching SuperRefiner...")
+        refiner = SuperRefiner(output_file)
+        refiner.refine()
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", type=str, required=True, help="Path to input image")
     parser.add_argument("--model", type=str, default=None, help="Path to trained weights (.pt)")
+    parser.add_argument("--refine", action="store_true", help="Enable elite mesh refinement")
     args = parser.parse_args()
     
     main(args.image, args.model)

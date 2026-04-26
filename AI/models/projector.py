@@ -26,14 +26,21 @@ class CrossAttnProjector(nn.Module):
         # Spatial Projector (from engine_sota)
         self.u = nn.Linear(d, d)
 
-    def forward(self, x):
-        # x is image features [B, V*L, D]
+    def forward(self, x, occ_mask=None):
         B = x.shape[0]
         tp = self.tp_queries.unsqueeze(0).expand(B, -1, -1, -1)
-        # Reshape to [B, 3, R*R, D]
+        
         planes = []
         for i in range(3):
-            p = self.layers[i](tp[:, i], x)
+            q = tp[:, i]
+            # Sparse activation: only attend to occupied regions if mask provided
+            if occ_mask is not None:
+                 m = occ_mask[i].flatten()
+                 q_sparse = q[:, m]
+                 p_sparse = self.layers[i](q_sparse, x)
+                 p = torch.zeros_like(q).scatter(1, m.expand(B, -1, -1), p_sparse)
+            else:
+                 p = self.layers[i](q, x)
             planes.append(p.reshape(B, self.r, self.r, -1).transpose(1, 3))
         return planes
 

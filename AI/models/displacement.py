@@ -13,7 +13,7 @@ class Siren(nn.Module):
     def forward(self, x): return torch.sin(self.w * self.l(x))
 
 class Disp(nn.Module):
-    def __init__(self, e=1024, h=512):
+    def __init__(self, e=1152, h=512):
         super().__init__()
         self.n = nn.Sequential(Siren(3+e, h, f=True), Siren(h, h), Siren(h, h), nn.Linear(h, 1))
         nn.init.zeros_(self.n[-1].weight)

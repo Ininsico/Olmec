@@ -1,0 +1,21 @@
+{
+    "model": {
+        "embed_dim": 768,
+        "num_heads": 12,
+        "num_layers": 24,
+        "mlp_ratio": 4.0,
+        "v": 1
+    },
+    "training": {
+        "lr": 4e-4,
+        "wd": 0.01,
+        "tot": 200000,
+        "wp": 2000,
+        "log": 50,
+        "eik": false
+    },
+    "inference": {
+        "resolution": 64,
+        "refine": true
+    }
+}

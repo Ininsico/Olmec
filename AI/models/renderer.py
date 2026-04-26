@@ -6,12 +6,28 @@ from .displacement import Siren
 from .hash_grid import HashGrid
 from utils.kernels import triton_eval_sh
 
+class GS(nn.Module):
+    def __init__(self, i=1152, h=512):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(i, h),
+            nn.SiLU(),
+            nn.Linear(h, 11)
+        )
+
+    def forward(self, x):
+        p = self.net(x)
+        m = p[..., :3]
+        s = torch.exp(p[..., 3:6])
+        r = F.normalize(p[..., 6:10], dim=-1)
+        o = torch.sigmoid(p[..., 10:11])
+        return torch.cat([m, s, r, o], -1)
+
 class SDFVol(nn.Module):
     def __init__(self, e=1152, h=512, l=4, sh=3):
         super().__init__()
         self.sh = sh
         self.grid = HashGrid()
-        # Input to MLP is Hash Grid (L*F) + Latent Context
         i_dim = (16 * 2) + e
         m = [Siren(i_dim, h, f=True)]
         for _ in range(l-2): m.append(Siren(h, h))
@@ -20,9 +36,7 @@ class SDFVol(nn.Module):
         self.c = nn.Linear(h, 3 * 9)
 
     def eval_sh(self, sh, d):
-        # sh: [..., 3, 9], d: [..., 3]
         s = sh.shape
-        # Flatten for Triton
         res = triton_eval_sh(sh.reshape(-1, 27), d.reshape(-1, 3))
         return res.reshape(*s[:-2], 3)
 

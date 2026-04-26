@@ -2,16 +2,15 @@ import torch
 import torch.nn as nn
 import numpy as np
 from skimage import measure
-from .encoder import VisionEncoder
+from .encoder import MultiModalEncoder
 from .transformer import OlmecTransformer
 from .renderer import GS, SDFVol
 from .displacement import Disp
 
 class OlmecLRM(nn.Module):
-    def __init__(self, e=1024, h=16, l=48, v=4):
+    def __init__(self, e=1152, h=16, l=48):
         super().__init__()
-        self.v = v
-        self.enc = VisionEncoder()
+        self.enc = MultiModalEncoder()
         self.pr = nn.Linear(self.enc.embed_dim, e)
         self.tr = OlmecTransformer(d=e, h=h, l=l)
         self.gs = GS(i=e)
@@ -19,10 +18,10 @@ class OlmecLRM(nn.Module):
         self.rf = Disp(e=e)
         self.gt = nn.Parameter(torch.randn(1, 1, e))
 
-    def forward(self, i, c=None, ds=False):
-        B, V, C, H, W = i.shape
-        f = self.enc(i.reshape(B*V, C, H, W))
-        x = self.pr(f).reshape(B, V*f.shape[1], -1)
+    def forward(self, i=None, text=None, c=None, ds=False):
+        B = i.shape[0] if i is not None else 1
+        f = self.enc(image=i, text=text, device=self.gt.device)
+        x = self.pr(f).reshape(B, f.shape[1], -1)
         k = torch.cat([self.gt.expand(B, -1, -1), x], 1)
         r = self.tr(k, rh=ds)
         lt, il = r if ds else (r, None)
@@ -37,13 +36,12 @@ class OlmecLRM(nn.Module):
         return res
 
     @torch.no_grad()
-    def generate(self, i, res=128, t=0.0):
-        B, V, C, H, W = i.shape
-        d = i.device
-        f = self.enc(i.reshape(B*V, C, H, W))
-        x = self.pr(f).reshape(B, V*f.shape[1], -1)
-        tks = self.gt.expand(B, -1, -1)
-        lt = self.tr(torch.cat([tks, x], 1))
+    def generate(self, i=None, text=None, res=128, t=0.0):
+        B = i.shape[0] if i is not None else 1
+        d = self.gt.device
+        f = self.enc(image=i, text=text, device=d)
+        x = self.pr(f).reshape(B, f.shape[1], -1)
+        lt = self.tr(torch.cat([self.gt.expand(B, -1, -1), x], 1))
         ctx = lt[:, 0:1]
         g = torch.stack(torch.meshgrid(torch.linspace(-1,1,res),torch.linspace(-1,1,res),torch.linspace(-1,1,res),indexing='ij'),-1).to(d).reshape(1,-1,3)
         sv = []

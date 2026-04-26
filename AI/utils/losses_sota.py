@@ -2,12 +2,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .chamfer_kernel import triton_chamfer
-from models.encoder import VisionEncoder
+from models.encoder import MultiScaleEncoder
 
 class DINOv2Perceptual(nn.Module):
     def __init__(self):
         super().__init__()
-        self.enc = VisionEncoder()
+        self.enc = MultiScaleEncoder()
         for p in self.parameters(): p.requires_grad = False
 
     def forward(self, x, y):
