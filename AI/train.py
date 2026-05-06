@@ -7,6 +7,9 @@ from timm.utils import ModelEmaV3
 from torch.optim.lr_scheduler import LambdaLR
 from models.model_lrm import OlmecLRM
 from utils.losses import OlmecLoss
+import threading
+import requests
+import subprocess
 
 class Trainer:
     def __init__(self, c):
@@ -18,7 +21,30 @@ class Trainer:
         self.s = LambdaLR(self.o, l_fn)
         self.ema = ModelEmaV3(self.m, decay=0.999) if self.acc.is_main_process else None
         self.crit = OlmecLoss()
+        
+        # Component Focus
+        if c.get('component'):
+            self.m.freeze_except(c['component'])
+            
         self.m, self.o, self.s = self.acc.prepare(self.m, self.o, self.s)
+        self._start_dashboard()
+
+    def sync_remote(self, server_url):
+        if not self.acc.is_main_process: return
+        try:
+            print(f"[*] Syncing with Master at {server_url}...")
+            # Push local weights
+            m_bytes = io.BytesIO()
+            torch.save(self.acc.unwrap_model(self.m).state_dict(), m_bytes)
+            m_bytes.seek(0)
+            requests.post(f"{server_url}/push_weights", files={"file": m_bytes})
+        except: print("[!] Sync failed.")
+
+    def _start_dashboard(self):
+        if self.acc.is_main_process:
+            def serve():
+                subprocess.Popen(["python", "dashboard_server.py"])
+            threading.Thread(target=serve, daemon=True).start()
 
     def step(self, b, gs):
         self.m.train()
@@ -49,6 +75,7 @@ class Trainer:
             from utils.mesh import MeshEngine
             e = MeshEngine(vertices=v, faces=f)
             e.export(os.path.join(path, f"preview_{gs}.glb"))
+            e.export(os.path.join(path, "preview_latest.glb"))
 
     def run(self, dl):
         dl = self.acc.prepare(dl)
@@ -57,6 +84,20 @@ class Trainer:
         while gs < self.c['tot']:
             for b in dl:
                 l = self.step(b, gs)
+                if self.acc.is_main_process:
+                    try:
+                        requests.post(f"http://{self.c.get('master_ip', 'localhost')}:8080/update", json={
+                            "worker_id": self.c.get('worker_id', 'master'),
+                            "component": self.c.get('component', 'full'),
+                            "step": gs,
+                            "loss": l['tot'].item(),
+                            "sdf": l.get('sdf', torch.tensor(0)).item(),
+                            "eik": l.get('eik', torch.tensor(0)).item()
+                        }, timeout=0.1)
+                    except: pass
+                
+                if gs % self.c.get('sync_every', 1000) == 0 and self.c.get('master_ip'):
+                    self.sync_remote(f"http://{self.c['master_ip']}:8080")
                 if gs % self.c.get('vis_every', 500) == 0:
                     self.visualize(b, gs)
                 if gs % self.c.get('save_every', 2000) == 0:
