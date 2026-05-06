@@ -18,6 +18,23 @@ class OlmecLRM(nn.Module):
         self.rf = Disp(e=e)
         self.gt = nn.Parameter(torch.randn(1, 1, e))
 
+    def freeze_except(self, component_name):
+        for name, param in self.named_parameters():
+            param.requires_grad = False
+        
+        target = None
+        if component_name == "encoder": target = self.enc
+        elif component_name == "transformer": target = self.tr
+        elif component_name == "renderer": target = [self.gs, self.sv, self.rf]
+        
+        if isinstance(target, list):
+            for t in target:
+                for p in t.parameters(): p.requires_grad = True
+        elif target:
+            for p in target.parameters(): p.requires_grad = True
+        
+        print(f"[!] COMPONENT FOCUS: {component_name.upper()} active. All other layers frozen.")
+
     def forward(self, i=None, text=None, c=None, ds=False):
         B = i.shape[0] if i is not None else 1
         f = self.enc(image=i, text=text, device=self.gt.device)

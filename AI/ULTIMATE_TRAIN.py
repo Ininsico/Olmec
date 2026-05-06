@@ -41,6 +41,13 @@ class OlmecDataset(Dataset):
         }
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--component", type=str, choices=["encoder", "transformer", "renderer", "full"], default="full")
+    parser.add_argument("--master_ip", type=str, default=None)
+    parser.add_argument("--worker_id", type=str, default="PC_Worker")
+    args = parser.parse_args()
+
     config = {
         "lr": 2e-4, 
         "wd": 0.05, 
@@ -48,7 +55,11 @@ if __name__ == "__main__":
         "wp": 5000, 
         "log": 10, 
         "vis_every": 250,
-        "save_every": 2000
+        "save_every": 2000,
+        "component": args.component,
+        "master_ip": args.master_ip,
+        "worker_id": args.worker_id,
+        "sync_every": 1000
     }
     
     os.makedirs("data/images", exist_ok=True)
