@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { OrbitControls, TransformControls } from 'three-stdlib';
+import { OrbitControls, TransformControls, GLTFLoader } from 'three-stdlib';
 import type { SceneObject } from '../types/builder.types';
 import { MeshFactory } from './MeshFactory';
 import { MeasureTool } from './tools/MeasureTool';
@@ -218,6 +218,36 @@ export class SceneManager {
 
         // IMMEDIATE AUTO SELECT
         this.selectObject(objData.id);
+    }
+
+    async loadAIModel(id: number, url: string, name: string): Promise<void> {
+        const loader = new GLTFLoader();
+        return new Promise((resolve, reject) => {
+            loader.load(url, (gltf) => {
+                const model = gltf.scene;
+                model.userData.id = id;
+                model.name = name;
+                
+                // Center and scale model
+                const box = new THREE.Box3().setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
+                model.position.sub(center); // Center the geometry
+                
+                const wrapper = new THREE.Group();
+                wrapper.add(model);
+                wrapper.userData.id = id;
+                wrapper.name = name;
+                wrapper.position.set(0, 0, 0);
+
+                this.scene.add(wrapper);
+                this.objects.set(id, wrapper);
+                this.selectObject(id);
+                resolve();
+            }, undefined, (error) => {
+                console.error('Error loading AI model:', error);
+                reject(error);
+            });
+        });
     }
 
     removeObject(id: number): void {

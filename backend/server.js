@@ -15,7 +15,12 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: [
+        'http://localhost:5173', 
+        'http://127.0.0.1:5173', 
+        'http://ininsico.artdevelopers.site',
+        'https://ininsico.artdevelopers.site'
+    ],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -33,6 +38,7 @@ app.use('/api', require('./routes/userRoutes'));
 app.use('/api', require('./routes/modelRoutes'));
 app.use('/api', require('./routes/emailRoutes'));
 app.use('/api/scene', require('./routes/sceneRoutes'));
+app.use('/api/ai', require('./routes/aiRoutes'));
 
 // Global Error Handler
 app.use((err, req, res, next) => {

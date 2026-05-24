@@ -75,7 +75,7 @@ export class DynamicTopology {
 
         if (!index) return geometry;
 
-        const _edges = this.getEdges(geometry);
+        // const _edges = this.getEdges(geometry);
         const maxLength = this.getTargetEdgeLength(center, radius);
         const newPositions: number[] = Array.from(position.array);
         const newIndices: number[] = [];
@@ -289,6 +289,7 @@ export class DynamicTopology {
     /**
      * Get edges from geometry
      */
+    /*
     private getEdges(geometry: THREE.BufferGeometry): Map<string, { v0: number; v1: number }> {
         const index = geometry.index!;
         const edges = new Map<string, { v0: number; v1: number }>();
@@ -305,10 +306,12 @@ export class DynamicTopology {
 
         return edges;
     }
+    */
 
     /**
      * Add edge to map
      */
+    /*
     private addEdge(
         edges: Map<string, { v0: number; v1: number }>,
         v0: number,
@@ -319,6 +322,7 @@ export class DynamicTopology {
             edges.set(key, { v0, v1 });
         }
     }
+    */
 
     /**
      * Get edge key

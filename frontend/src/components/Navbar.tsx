@@ -28,6 +28,7 @@ const Navbar: React.FC = () => {
 
     const navLinks = [
         { name: 'Product', href: '/product' },
+        { name: 'Train', href: '/train' },
         { name: 'Contact', href: '/contact' },
         { name: 'About', href: '/about' },
     ];
@@ -48,15 +49,15 @@ const Navbar: React.FC = () => {
                 >
                     {/* Desktop Links */}
                     <div className="hidden lg:flex items-center space-x-10">
-                        <Link to="/product" className="text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors tracking-tight">
-                            Product
-                        </Link>
-                        <Link to="/contact" className="text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors tracking-tight">
-                            Contact
-                        </Link>
-                        <Link to="/about" className="text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors tracking-tight">
-                            About
-                        </Link>
+                        {navLinks.map((link) => (
+                            <Link 
+                                key={link.name} 
+                                to={link.href} 
+                                className="text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors tracking-tight"
+                            >
+                                {link.name}
+                            </Link>
+                        ))}
                     </div>
 
                     {/* Logo */}

@@ -11,6 +11,7 @@ import Signup from '@/pages/Signup';
 import AuthSuccess from '@/pages/AuthSuccess';
 import Dashboard from '@/pages/Dashboard';
 import Builder from '@/pages/Builder';
+import Train from '@/pages/Train';
 import ScrollToTop from '@/components/ScrollToTop';
 import './App.css';
 
@@ -37,6 +38,7 @@ function App() {
           <Route path="/product" element={<Product />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/about" element={<About />} />
+          <Route path="/train" element={<Train />} />
         </Route>
 
         {/* Auth Pages (Standalone) */}

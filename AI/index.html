@@ -365,7 +365,8 @@
         }
 
         // WebSocket Integration
-        const socket = new WebSocket('ws://localhost:8080/ws');
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
         
         socket.onmessage = function(event) {
             const data = JSON.parse(event.data);
@@ -377,11 +378,14 @@
 
             // Update Neural Map
             Object.keys(data.active_workers).forEach(id => {
-                const comp = data.active_workers[id];
+                const worker = data.active_workers[id];
+                const comp = worker.component;
+                const type = worker.type;
+                
                 const card = document.getElementById(`map-${comp}`);
                 if (card) {
-                    card.style.borderLeftColor = "var(--accent)";
-                    document.getElementById(`status-${comp}`).innerText = `ACTIVE: ${id}`;
+                    card.style.borderLeftColor = type === 'web' ? 'var(--success)' : 'var(--accent)';
+                    document.getElementById(`status-${comp}`).innerText = `${type.toUpperCase()}_NODE: ${id}`;
                 }
             });
 

@@ -4,18 +4,38 @@ from fastapi.responses import FileResponse
 import uvicorn
 import json
 import asyncio
-import torch
-import io
+import os
 
 app = FastAPI()
-app.mount("/previews", StaticFiles(directory="previews"), name="previews")
+previews_dir = "previews"
+os.makedirs(previews_dir, exist_ok=True)
+app.mount("/previews", StaticFiles(directory=previews_dir), name="previews")
 
-current_metrics = {"step": 0, "loss": 0, "eik": 0, "active_workers": {}}
+current_metrics = {"step": 0, "loss": 0, "status": "idle", "active_workers": {}}
 clients = []
 
 @app.get("/")
 async def get_index():
-    return FileResponse("index.html")
+    html = """<!DOCTYPE html>
+<html>
+<head><title>Olmec 3D Dashboard</title>
+<style>
+body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 40px; text-align: center; }
+h1 { font-size: 2em; border-bottom: 2px solid #0f0; padding-bottom: 10px; }
+.metric { font-size: 1.5em; margin: 20px; padding: 20px; background: #111; border: 1px solid #0f0; border-radius: 8px; }
+.status { color: #0f0; }
+</style></head>
+<body>
+<h1>OLMEC 3D - MATHEMATICAL ENGINE</h1>
+<div class="metric">
+<div class="status">STATUS: OPERATIONAL</div>
+<div>Engine: Shape-from-Shading + SDF + Marching Cubes</div>
+<div>No neural networks. Pure mathematics.</div>
+</div>
+</body></html>"""
+    return HTMLResponse(html)
+
+from fastapi.responses import HTMLResponse
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -31,24 +51,12 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.post("/update")
 async def update_metrics(metrics: dict):
     global current_metrics
-    worker_id = metrics.get("worker_id", "master")
     current_metrics.update(metrics)
-    if "component" in metrics:
-        current_metrics["active_workers"][worker_id] = metrics["component"]
     return {"status": "ok"}
 
-@app.get("/pull_weights")
-async def pull_weights():
-    if os.path.exists("models/latest.pt"):
-        return FileResponse("models/latest.pt")
-    return {"error": "no weights available"}
-
-@app.post("/push_weights")
-async def push_weights(file: UploadFile = File(...)):
-    os.makedirs("models", exist_ok=True)
-    with open("models/latest.pt", "wb") as f:
-        f.write(await file.read())
-    return {"status": "synced"}
+@app.get("/status")
+async def status():
+    return {"engine": "math_engine", "status": "operational", "type": "deterministic"}
 
 def start_dashboard():
     uvicorn.run(app, host="0.0.0.0", port=8080, log_level="error")

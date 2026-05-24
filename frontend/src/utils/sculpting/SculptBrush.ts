@@ -431,7 +431,7 @@ export class SculptBrush {
         center: THREE.Vector3,
         normal: THREE.Vector3,
         strength: number,
-        radius: number
+        _radius: number
     ): void {
         affected.forEach(({ weight }, index) => {
             const vertex = new THREE.Vector3(

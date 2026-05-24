@@ -1,42 +1,40 @@
-# 🏺 Olmec 3D: God Mode AI Suite
+# Olmec 3D: Mathematical 3D Reconstruction Engine
 
-Welcome to the ultimate 3D reconstruction pipeline. This suite has been upgraded to be the "best of the best," fixing previous bugs and adding professional-grade tools.
+Pure mathematical 3D reconstruction from single images.
+No neural networks. No pattern recognition. No training data dependencies.
 
-## 🚀 Quick Start (Web UI)
-Launch the interactive web interface to generate 3D models from images in your browser:
+## Algorithm Pipeline
+
+1. **Shape from Shading** - Recovers surface normals from image intensity using photometric constraints
+2. **Frankot-Chellappa Integration** - Integrates normal field into depth map via FFT
+3. **Point Cloud Generation** - Projects depth map into 3D space using camera geometry
+4. **SDF Computation** - Signed Distance Function via KD-tree nearest neighbor + RBF interpolation
+5. **Marching Cubes** - Extracts triangle mesh from SDF grid
+6. **Poisson Surface Reconstruction** - Refines mesh with manifold surface fitting
+7. **Taubin Smoothing** - Applies curvature-flow smoothing for clean geometry
+
+## Mathematical Foundation
+
+- Surface normals from image gradients: n = (-∂I/∂x, -∂I/∂y, 1) / |...|
+- Depth via Frankot-Chellappa: Z = F^{-1}( (-juP - jvQ) / (u^2 + v^2) )
+- SDF via KD-tree query: φ(x) = sign(x) * min||x - x_i||
+- Mesh via Marching Cubes: Extract isosurface φ(x) = 0
+
+## Quick Start
+
 ```bash
+# Web UI
 python web_app.py
+
+# CLI
+python Mastermind.py --image data/sample.png --output result.glb
+
+# API
+python OlmecAPI.py
+curl -X POST -F "file=@image.png" http://localhost:8000/generate
+
+# Dashboard
+python dashboard_server.py
 ```
 
-## 🛠️ The Mastermind CLI
-Use `Mastermind.py` for all your AI needs. It's a unified controller for training and inference.
-
-**Generate a 3D model:**
-```bash
-python Mastermind.py --image data/input.png --weights models/latest.pt
-```
-
-## 💎 Elite Mesh Refinement
-We've added a `SuperRefiner` that uses SOTA topology optimization.
-- **Isotropic Remeshing**: Creates a perfectly uniform vertex distribution.
-- **Hole Filling**: Automatically repairs broken geometry.
-- **Decimation**: Reduces polygon count while preserving detail.
-
-**Run Refiner independently:**
-```bash
-python tools/refiner.py --input output.glb
-```
-
-## 🐞 Fixed Issues (The "Shit Show" cleanup)
-- Fixed `VisionEncoder` vs `MultiScaleEncoder` class mismatch.
-- Fixed missing `numpy` and `torch.nn.functional` imports in the encoder.
-- Fixed `generate_mesh` method name error in `inference.py`.
-- Corrected input tensor dimensions for single-image inference.
-
-## 🧪 Future SOTA Roadmap
-- [ ] **Text-to-3D**: Integration with Stable Diffusion for prompt-based generation.
-- [ ] **Texture Refinement**: Diffusion-based UV texture generation.
-- [ ] **Real-time Splatting**: Direct Gaussian Splatting export.
-
----
-*Built for Ininsico(3D) by Antigravity AI.*
+No weights to download. No model checkpoints. Just math.

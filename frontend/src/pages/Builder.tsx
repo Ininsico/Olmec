@@ -23,6 +23,7 @@ import { WorldPanel } from '../components/builder/sidebar/WorldPanel';
 import { RenderPanel } from '../components/builder/sidebar/RenderPanel';
 import { LogicPanel } from '../components/builder/sidebar/LogicPanel';
 import { PropertiesPanel } from '../components/builder/sidebar/PropertiesPanel';
+import { AIGenerationModal } from '../components/builder/AIGenerationModal';
 
 const Builder: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -48,6 +49,10 @@ const Builder: React.FC = () => {
     const [_statusMessage, setStatusMessage] = useState('Ready');
     const [notification, setNotification] = useState<{ type: NotificationType; message: string } | null>(null);
     const [editMode, setEditMode] = useState<'object' | 'vertex' | 'edge' | 'face'>('object');
+    
+    // AI Generation State
+    const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+    const [aiMode, setAiMode] = useState<'text' | 'image'>('text');
 
     // Auto-save hook
     useScenePersistence(sceneManagerRef);
@@ -171,6 +176,12 @@ const Builder: React.FC = () => {
     const handleCreateShape = (shape: string) => {
         console.log('handleCreateShape called with:', shape);
 
+        if (shape === 'ai_generate_text' || shape === 'ai_generate_image') {
+            setAiMode(shape === 'ai_generate_text' ? 'text' : 'image');
+            setIsAIModalOpen(true);
+            return;
+        }
+
         if (!appStateRef.current || !sceneManagerRef.current) {
             console.error('AppState or SceneManager not initialized');
             return;
@@ -196,6 +207,27 @@ const Builder: React.FC = () => {
 
         showNotification('success', `${shape} created successfully`);
         setStatusMessage(`Created ${shape}`);
+    };
+
+    const handleAIModelGenerated = async (modelUrl: string) => {
+        if (!appStateRef.current || !sceneManagerRef.current) return;
+
+        const obj = {
+            id: 0,
+            type: 'mesh' as any, // AI model is a mesh
+            name: `AI_Mesh_${appStateRef.current.lastObjectId + 1}`,
+            userData: { ai_generated: true, source_url: modelUrl }
+        };
+
+        const addedObj = appStateRef.current.addObject(obj);
+        
+        // Use the new loadAIModel method
+        await sceneManagerRef.current.loadAIModel(addedObj.id, modelUrl, addedObj.name);
+        
+        // Update store
+        addStoreObject(obj);
+        
+        showNotification('success', 'AI Model imported successfully');
     };
 
     // Handle tool change
@@ -650,6 +682,13 @@ const Builder: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            <AIGenerationModal 
+                isOpen={isAIModalOpen}
+                onClose={() => setIsAIModalOpen(false)}
+                mode={aiMode}
+                onModelGenerated={handleAIModelGenerated}
+            />
         </div>
     );
 };

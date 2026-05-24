@@ -2,8 +2,8 @@ import * as THREE from 'three';
 
 export class MeasureTool {
     private scene: THREE.Scene;
-    private _camera: THREE.PerspectiveCamera;
-    private _renderer: THREE.WebGLRenderer;
+    // private _camera: THREE.PerspectiveCamera;
+    // private _renderer: THREE.WebGLRenderer;
     private active: boolean = false;
     private points: THREE.Vector3[] = [];
 
@@ -12,10 +12,10 @@ export class MeasureTool {
     private line: THREE.Line | null = null;
     private label: THREE.Sprite | null = null;
 
-    constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer) {
+    constructor(scene: THREE.Scene, _camera: THREE.PerspectiveCamera, _renderer: THREE.WebGLRenderer) {
         this.scene = scene;
-        this._camera = camera;
-        this._renderer = renderer;
+        // this._camera = camera;
+        // this._renderer = renderer;
     }
 
     activate() {

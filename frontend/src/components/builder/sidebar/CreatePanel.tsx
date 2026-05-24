@@ -13,6 +13,31 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({ onCreateShape }) => {
             </div>
 
             <div className="space-y-4">
+                <div className="space-y-1">
+                    <h4 className="text-[10px] font-bold text-richred uppercase tracking-wider flex items-center justify-between cursor-pointer hover:text-white group">
+                        <div className="flex items-center gap-1">
+                            <i className="fas fa-brain text-[8px]"></i>
+                            AI CORE (SOTA)
+                        </div>
+                    </h4>
+                    <div className="grid grid-cols-1 gap-1 pl-1">
+                        <button
+                            className="text-left px-2 py-2 border border-richred/30 bg-richred/5 rounded hover:bg-richred hover:text-white text-[9px] text-richred font-bold transition-all flex items-center gap-2"
+                            onClick={() => onCreateShape('ai_generate_text')}
+                        >
+                            <i className="fas fa-comment-alt"></i>
+                            Generate from Text
+                        </button>
+                        <button
+                            className="text-left px-2 py-2 border border-richred/30 bg-richred/5 rounded hover:bg-richred hover:text-white text-[9px] text-richred font-bold transition-all flex items-center gap-2"
+                            onClick={() => onCreateShape('ai_generate_image')}
+                        >
+                            <i className="fas fa-image"></i>
+                            Generate from Image
+                        </button>
+                    </div>
+                </div>
+
                 {[
                     { cat: 'Mesh', items: ['Plane', 'Cube', 'Circle', 'UV Sphere', 'Ico Sphere', 'Cylinder', 'Cone', 'Torus', 'Grid', 'Monkey'] },
                     { cat: 'Curve', items: ['Bezier', 'Nurbs Curve', 'Nurbs Circle', 'Path'] },
