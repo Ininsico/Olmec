@@ -1,265 +1,190 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-// import { useAppStore } from '../store/useAppStore';
+import axios from 'axios';
+
+const API_BASE = window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
+  : '/ai-api';
+
+const PIPELINE_STEPS = [
+  { id: 1, name: 'Shape from Shading', desc: 'Surface normals from image intensity gradients', formula: 'n = (-∂I/∂x, -∂I/∂y, 1) / √((∂I/∂x)²+(∂I/∂y)²+1)' },
+  { id: 2, name: 'Frankot-Chellappa Integration', desc: 'FFT-based depth reconstruction from normals', formula: 'Z = F⁻¹( (-juP - jvQ) / (u²+v²) )' },
+  { id: 3, name: 'Point Cloud Generation', desc: 'Depth map projection into 3D space', formula: 'X = (x-cx)·Z/fx, Y = (y-cy)·Z/fy' },
+  { id: 4, name: 'SDF Computation', desc: 'Signed distance via KD-tree nearest neighbor', formula: 'φ(x) = min||x - pᵢ|| × sign(x)' },
+  { id: 5, name: 'Marching Cubes', desc: 'Triangle mesh extraction from SDF grid', formula: 'Isosurface φ(x) = 0' },
+  { id: 6, name: 'Poisson Reconstruction', desc: 'Manifold surface fitting with Taubin smoothing', formula: 'Δφ = ∇·n' },
+];
 
 const Train: React.FC = () => {
-    const [stats, setStats] = useState({ step: 0, loss: 0, active_workers: {} });
-    const [isConnecting, setIsConnecting] = useState(false);
-    const [contributionMode, setContributionMode] = useState(false);
-    const [logs, setLogs] = useState<string[]>([]);
-    const logEndRef = useRef<HTMLDivElement>(null);
+  const [image, setImage] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState<number>(0);
+  const [meshInfo, setMeshInfo] = useState<{ verts: number; faces: number; size: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-    // Mock WebSocket or real if backend is up
-    useEffect(() => {
-        const socket = new WebSocket(`ws://${window.location.hostname}:8080/ws`);
-        
-        socket.onopen = () => {
-            addLog("Connected to OLMEC Master Node.");
-        };
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImage(file);
+    setPreview(URL.createObjectURL(file));
+    setResultUrl(null);
+    setMeshInfo(null);
+    setError(null);
+  };
 
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            setStats(data);
-        };
+  const generate3D = async () => {
+    if (!image) return;
+    setGenerating(true);
+    setError(null);
+    setCurrentStep(0);
 
-        socket.onerror = () => {
-            addLog("Connection to Master Node failed. Retrying...");
-        };
+    const stepInterval = setInterval(() => {
+      setCurrentStep(prev => Math.min(prev + 1, 6));
+    }, 800);
 
-        return () => socket.close();
-    }, []);
+    try {
+      const formData = new FormData();
+      formData.append('file', image);
+      const res = await axios.post(`${API_BASE}/generate`, formData, {
+        headers: { 'x-api-key': 'OLMEC_DEV_KEY_99' },
+        responseType: 'blob',
+        timeout: 60000,
+      });
 
-    useEffect(() => {
-        if (logEndRef.current) {
-            logEndRef.current.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [logs]);
+      clearInterval(stepInterval);
+      setCurrentStep(6);
 
-    const addLog = (msg: string) => {
-        const time = new Date().toLocaleTimeString();
-        setLogs(prev => [...prev.slice(-20), `[${time}] ${msg}`]);
-    };
+      const url = URL.createObjectURL(res.data);
+      setResultUrl(url);
 
-    const startContribution = () => {
-        setIsConnecting(true);
-        setTimeout(() => {
-            setIsConnecting(false);
-            setContributionMode(true);
-            addLog("Initialized Web-Worker Contribution Mode.");
-            addLog("Allocating virtual memory for gradient sync...");
-            simulateTraining();
-        }, 2000);
-    };
+      const contentLen = res.headers['content-length'];
+      if (contentLen) {
+        const sizeKB = (parseInt(contentLen) / 1024).toFixed(1);
+        setMeshInfo({ verts: 0, faces: 0, size: sizeKB + ' KB' });
+      }
+    } catch (err: any) {
+      clearInterval(stepInterval);
+      setError(err.message || 'Generation failed');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
-    const simulateTraining = () => {
-        if (!contributionMode) return;
-        
-        const workerId = `WebNode_${Math.random().toString(36).slice(2, 7)}`;
-        
-        const heartbeat = setInterval(async () => {
-            try {
-                await fetch(`http://${window.location.hostname}:8080/update`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        worker_id: workerId,
-                        type: 'web',
-                        component: 'renderer', // Web workers focus on rendering updates
-                        loss: stats.loss,
-                        step: stats.step
-                    })
-                });
-            } catch (e) {
-                console.error("Heartbeat failed", e);
-            }
-        }, 5000);
+  const reset = () => {
+    setImage(null);
+    setPreview(null);
+    setResultUrl(null);
+    setMeshInfo(null);
+    setError(null);
+    setCurrentStep(0);
+  };
 
-        const tasks = [
-            "Calculating SDF gradients...",
-            "Syncing weights with Master...",
-            "Processing latent vector B-12...",
-            "Optimizing topology mesh...",
-            "Pushing local updates to cluster..."
-        ];
-        
-        const runTask = () => {
-            if (!contributionMode) {
-                clearInterval(heartbeat);
-                return;
-            }
-            const task = tasks[Math.floor(Math.random() * tasks.length)];
-            addLog(`Contribution: ${task}`);
-            setTimeout(runTask, 3000 + Math.random() * 5000);
-        };
-        runTask();
-    };
+  return (
+    <div className="min-h-screen bg-[#050505] text-white pt-24 pb-12 px-6">
+      <div className="max-w-7xl mx-auto">
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-12">
+          <h1 className="text-5xl font-black tracking-tighter mb-2">
+            OLMEC <span className="text-richred">MATH</span>
+          </h1>
+          <p className="text-slate-400 text-lg">Deterministic 3D Reconstruction Engine</p>
+          <div className="flex gap-2 mt-3">
+            <span className="text-[10px] bg-green-500/20 text-green-400 px-3 py-1 rounded-full font-mono">NO NEURAL NETS</span>
+            <span className="text-[10px] bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full font-mono">PURE MATHEMATICS</span>
+            <span className="text-[10px] bg-purple-500/20 text-purple-400 px-3 py-1 rounded-full font-mono">NO TRAINING DATA</span>
+          </div>
+        </motion.div>
 
-    return (
-        <div className="min-h-screen bg-[#050505] text-white pt-24 pb-12 px-6 font-sans">
-            <div className="max-w-7xl mx-auto">
-                {/* Header Section */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
-                    <div>
-                        <motion.h1 
-                            initial={{ opacity: 0, y: -20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="text-5xl font-black tracking-tighter mb-2"
-                        >
-                            OLMEC <span className="text-richred">SWARM</span>
-                        </motion.h1>
-                        <p className="text-slate-400 text-lg">Distributed Neural Training Network</p>
-                    </div>
-
-                    <div className="flex gap-4">
-                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-4">
-                            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_#22c55e]"></div>
-                            <div>
-                                <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Network Status</div>
-                                <div className="text-sm font-bold">LIVE_SYNC_ACTIVE</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Left Column: Stats */}
-                    <div className="lg:col-span-2 space-y-8">
-                        {/* Metrics Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <MetricCard title="GLOBAL_LOSS" value={stats.loss.toFixed(6)} sub="Total Convergence" color="richred" />
-                            <MetricCard title="STEP_SYNC" value={stats.step.toLocaleString()} sub="Global Iterations" color="white" />
-                            <MetricCard title="ACTIVE_NODES" value={Object.keys(stats.active_workers).length + 1} sub="Global Contributors" color="blue" />
-                        </div>
-
-                        {/* Network Map Visualization (Simplified) */}
-                        <div className="bg-white/5 border border-white/10 rounded-3xl p-8 h-[400px] relative overflow-hidden">
-                            <div className="absolute inset-0 opacity-20">
-                                <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
-                            </div>
-                            
-                            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500 mb-8">Node Topography</h3>
-                            
-                            <div className="relative h-full w-full flex items-center justify-center">
-                                {/* Central Node */}
-                                <div className="relative z-10 w-24 h-24 bg-richred rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(220,38,38,0.5)]">
-                                    <span className="text-[10px] font-black">MASTER</span>
-                                </div>
-
-                                {/* Radial Worker Nodes */}
-                                {Object.keys(stats.active_workers).map((id, index) => {
-                                    const angle = (index / Object.keys(stats.active_workers).length) * Math.PI * 2;
-                                    const x = Math.cos(angle) * 120;
-                                    const y = Math.sin(angle) * 120;
-                                    return (
-                                        <motion.div 
-                                            key={id}
-                                            initial={{ scale: 0 }}
-                                            animate={{ scale: 1, x, y }}
-                                            className="absolute w-12 h-12 bg-white/10 border border-white/20 rounded-full flex items-center justify-center backdrop-blur-md"
-                                        >
-                                            <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></div>
-                                        </motion.div>
-                                    );
-                                })}
-
-                                {/* Connection Lines (SVG) */}
-                                <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                                    {Object.keys(stats.active_workers).map((id, index) => {
-                                        const angle = (index / Object.keys(stats.active_workers).length) * Math.PI * 2;
-                                        return (
-                                            <line 
-                                                key={`line-${id}`}
-                                                x1="50%" y1="50%" x2={`${50 + (Math.cos(angle) * 30)}%`} y2={`${50 + (Math.sin(angle) * 30)}%`}
-                                                stroke="rgba(255,255,255,0.1)" strokeWidth="1" strokeDasharray="4 4"
-                                            />
-                                        );
-                                    })}
-                                </svg>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Right Column: Terminal & Contribution */}
-                    <div className="space-y-8">
-                        {/* Terminal */}
-                        <div className="bg-black border border-white/10 rounded-3xl p-6 h-[400px] flex flex-col font-mono text-[11px]">
-                            <div className="flex items-center gap-2 mb-4">
-                                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                <span className="text-[10px] text-slate-500 ml-2">CORE_LOGS</span>
-                            </div>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1">
-                                {logs.map((log, i) => (
-                                    <div key={i} className="text-slate-400">
-                                        <span className="text-richred">{'>'}</span> {log}
-                                    </div>
-                                ))}
-                                <div ref={logEndRef} />
-                            </div>
-                        </div>
-
-                        {/* Contribution Button */}
-                        <div className="bg-white rounded-3xl p-8 text-black shadow-[0_0_40px_rgba(255,255,255,0.1)]">
-                            {!contributionMode ? (
-                                <>
-                                    <h3 className="text-xl font-bold mb-2">Join the Training Swarm</h3>
-                                    <p className="text-xs text-slate-600 mb-6 leading-relaxed">
-                                        Contribute your device's compute power to help train the OLMEC SOTA model. 
-                                        Web-based contribution uses your browser's idle resources to calculate 
-                                        gradients for the mesh refiner.
-                                    </p>
-                                    <button 
-                                        disabled={isConnecting}
-                                        onClick={startContribution}
-                                        className="w-full bg-black text-white h-14 rounded-2xl font-bold hover:scale-[1.02] transition-transform flex items-center justify-center gap-3 disabled:opacity-50"
-                                    >
-                                        {isConnecting ? (
-                                            <>
-                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                                INITIATING...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <i className="fas fa-bolt"></i>
-                                                START CONTRIBUTION
-                                            </>
-                                        )}
-                                    </button>
-                                </>
-                            ) : (
-                                <div className="text-center">
-                                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <i className="fas fa-check text-3xl text-green-600"></i>
-                                    </div>
-                                    <h3 className="text-xl font-bold mb-1">NODE_ACTIVE</h3>
-                                    <p className="text-xs text-slate-500 mb-6">You are now contributing to the cluster.</p>
-                                    <div className="bg-slate-100 rounded-2xl p-4 mb-6">
-                                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Contribution Hash</div>
-                                        <div className="text-sm font-mono truncate">0x{Math.random().toString(16).slice(2, 10).toUpperCase()}...</div>
-                                    </div>
-                                    <button 
-                                        onClick={() => setContributionMode(false)}
-                                        className="text-xs font-bold text-red-600 hover:underline"
-                                    >
-                                        STOP CONTRIBUTION
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
+        {/* Pipeline Steps */}
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mb-12">
+          {PIPELINE_STEPS.map((step, i) => (
+            <motion.div
+              key={step.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className={`rounded-2xl p-4 border text-center transition-all ${
+                currentStep >= step.id
+                  ? 'bg-green-500/10 border-green-500/40'
+                  : currentStep > 0 && currentStep < step.id
+                  ? 'bg-white/5 border-white/10'
+                  : 'bg-white/5 border-white/10'
+              }`}
+            >
+              <div className={`text-lg font-black mb-1 ${
+                currentStep >= step.id ? 'text-green-400' : 'text-slate-500'
+              }`}>0{step.id}</div>
+              <div className="text-xs font-bold mb-1">{step.name}</div>
+              <div className="text-[9px] text-slate-500 leading-tight">{step.formula}</div>
+            </motion.div>
+          ))}
         </div>
-    );
-};
 
-const MetricCard = ({ title, value, sub, color }: any) => (
-    <div className="bg-white/5 border border-white/10 rounded-3xl p-6 transition-all hover:bg-white/[0.07] group">
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-4 group-hover:text-white transition-colors">{title}</div>
-        <div className={`text-3xl font-black mb-1 ${color === 'richred' ? 'text-richred' : 'text-white'}`}>{value}</div>
-        <div className="text-[10px] text-slate-500 font-medium">{sub}</div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Input */}
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-6">Input</h2>
+            {!preview ? (
+              <label className="block border-2 border-dashed border-white/20 rounded-2xl p-16 text-center cursor-pointer hover:border-white/40 transition-all">
+                <div className="text-4xl mb-4 text-slate-500">+</div>
+                <div className="text-sm text-slate-400">Drop an image or click to browse</div>
+                <input type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+              </label>
+            ) : (
+              <div>
+                <img src={preview} alt="preview" className="w-full rounded-2xl mb-4 max-h-80 object-contain" />
+                <div className="flex gap-3">
+                  <button onClick={generate3D} disabled={generating}
+                    className="flex-1 bg-richred text-white h-12 rounded-2xl font-bold hover:scale-[1.02] transition-all disabled:opacity-50">
+                    {generating ? 'RECONSTRUCTING...' : 'GENERATE 3D'}
+                  </button>
+                  <button onClick={reset}
+                    className="px-6 h-12 rounded-2xl border border-white/20 text-sm hover:bg-white/10 transition-all">
+                    RESET
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Output */}
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-6">Output</h2>
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 text-red-400 text-sm mb-4">
+                {error}
+              </div>
+            )}
+            {resultUrl ? (
+              <div>
+                <div className="w-full h-80 rounded-2xl bg-black/50 flex items-center justify-center border border-white/10">
+                  <div className="text-center">
+                    <div className="text-5xl mb-2">✅</div>
+                    <div className="text-sm font-bold text-green-400">MODEL GENERATED</div>
+                    <div className="text-xs text-slate-500 mt-1">{meshInfo?.size || 'Unknown size'}</div>
+                  </div>
+                </div>
+                <a href={resultUrl} download="olmec_output.glb"
+                  className="mt-4 block w-full bg-richred text-center h-12 leading-[48px] rounded-2xl font-bold hover:scale-[1.02] transition-all text-sm">
+                  DOWNLOAD .GLB
+                </a>
+              </div>
+            ) : generating ? (
+              <div className="flex flex-col items-center justify-center h-80 text-slate-500">
+                <div className="w-12 h-12 border-2 border-white/20 border-t-white rounded-full animate-spin mb-4"></div>
+                <div className="text-sm">{PIPELINE_STEPS[currentStep]?.name || 'Processing...'}</div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-80 text-slate-600 text-sm">
+                {image ? 'Click GENERATE 3D' : 'Upload an image to begin'}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
-);
+  );
+};
 
 export default Train;
