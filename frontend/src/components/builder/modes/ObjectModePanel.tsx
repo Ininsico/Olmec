@@ -100,6 +100,41 @@ export const ObjectModePanel: React.FC<ObjectModePanelProps> = ({
                     ))}
                 </div>
             </div>
+
+            {/* Combine / Boolean */}
+            <div className="space-y-1">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Combine</h4>
+                <div className="grid grid-cols-2 gap-1">
+                    <button
+                        className="text-left px-2 py-1.5 border border-white/5 rounded hover:bg-purple-600 hover:text-white hover:border-purple-600 text-[9px] text-slate-300 transition-colors"
+                        onClick={() => handleTransformClick('combine')}
+                        title="Merge two selected objects into one mesh"
+                    >
+                        <i className="fas fa-link mr-1"></i> Combine
+                    </button>
+                    <button
+                        className="text-left px-2 py-1.5 border border-white/5 rounded hover:bg-purple-600 hover:text-white hover:border-purple-600 text-[9px] text-slate-300 transition-colors"
+                        onClick={() => handleTransformClick('boolean_union')}
+                        title="Union of two selected objects"
+                    >
+                        <i className="fas fa-plus-circle mr-1"></i> Union
+                    </button>
+                    <button
+                        className="text-left px-2 py-1.5 border border-white/5 rounded hover:bg-purple-600 hover:text-white hover:border-purple-600 text-[9px] text-slate-300 transition-colors"
+                        onClick={() => handleTransformClick('boolean_difference')}
+                        title="Subtract second object from first"
+                    >
+                        <i className="fas fa-minus-circle mr-1"></i> Difference
+                    </button>
+                    <button
+                        className="text-left px-2 py-1.5 border border-white/5 rounded hover:bg-purple-600 hover:text-white hover:border-purple-600 text-[9px] text-slate-300 transition-colors"
+                        onClick={() => handleTransformClick('boolean_intersect')}
+                        title="Keep only overlapping volume"
+                    >
+                        <i className="fas fa-times-circle mr-1"></i> Intersect
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

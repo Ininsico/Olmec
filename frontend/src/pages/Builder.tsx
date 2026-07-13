@@ -52,7 +52,6 @@ const Builder: React.FC = () => {
     
     // AI Generation State
     const [isAIModalOpen, setIsAIModalOpen] = useState(false);
-    const [aiMode, setAiMode] = useState<'text' | 'image'>('text');
 
     // Auto-save hook
     useScenePersistence(sceneManagerRef);
@@ -82,16 +81,9 @@ const Builder: React.FC = () => {
         // Handle selection sync
         sceneManager.onObjectSelected = (id) => {
             if (id !== null) {
-                // We use the store's selectObject action.
-                // Note: The store action might toggle. Ideally we force select.
-                // Assuming standard behavior is sufficient for now.
                 useAppStore.getState().selectObject(id);
             } else {
-                // If id is null (deselected), we should clear store selection if possible.
-                // Implementation detail: If store has clearSelection, use it.
-                // Otherwise pass dummy or handle manually.
-                // For now, if SceneManager keeps selection (background click ignored), this happens rarely (only delete).
-                // Actually removeObject calls this with null.
+                useAppStore.getState().clearSelection();
             }
         };
 
@@ -177,7 +169,6 @@ const Builder: React.FC = () => {
         console.log('handleCreateShape called with:', shape);
 
         if (shape === 'ai_generate_text' || shape === 'ai_generate_image') {
-            setAiMode(shape === 'ai_generate_text' ? 'text' : 'image');
             setIsAIModalOpen(true);
             return;
         }
@@ -209,25 +200,21 @@ const Builder: React.FC = () => {
         setStatusMessage(`Created ${shape}`);
     };
 
-    const handleAIModelGenerated = async (modelUrl: string) => {
+    const handlePointsGenerated = (points: Float32Array, label: string) => {
         if (!appStateRef.current || !sceneManagerRef.current) return;
 
+        const id = appStateRef.current.generateId();
         const obj = {
-            id: 0,
-            type: 'mesh' as any, // AI model is a mesh
-            name: `AI_Mesh_${appStateRef.current.lastObjectId + 1}`,
-            userData: { ai_generated: true, source_url: modelUrl }
+            id,
+            type: 'mesh' as any,
+            name: `Contour_${id}`,
+            userData: { contour_fitted: true, fit_label: label }
         };
-
-        const addedObj = appStateRef.current.addObject(obj);
-        
-        // Use the new loadAIModel method
-        await sceneManagerRef.current.loadAIModel(addedObj.id, modelUrl, addedObj.name);
-        
-        // Update store
+        appStateRef.current.addObject(obj);
         addStoreObject(obj);
-        
-        showNotification('success', 'AI Model imported successfully');
+
+        sceneManagerRef.current.createContourFromPoints(id, points, obj.name, 1);
+        showNotification('success', `Contour fitted: ${label}`);
     };
 
     // Handle tool change
@@ -235,6 +222,44 @@ const Builder: React.FC = () => {
         setTool(tool); // Update Zustand
         // SceneManager update handled by effect
     };
+
+    // Sculpt brush and setting handlers
+    const handleSculptBrushChange = useCallback((brush: any) => {
+        if (sceneManagerRef.current) {
+            sceneManagerRef.current.setSculptBrush(brush);
+        }
+    }, []);
+
+    const handleSculptSettingChange = useCallback((setting: string, value: any) => {
+        if (sceneManagerRef.current) {
+            sceneManagerRef.current.setSculptSetting(setting, value);
+        }
+    }, []);
+
+    // Enter/exit sculpt mode when the sculpt tab is activated
+    useEffect(() => {
+        if (activeTab === 'sculpt') {
+            sceneManagerRef.current?.enterSculptMode();
+            setTool('select');
+        } else {
+            sceneManagerRef.current?.exitSculptMode();
+        }
+    }, [activeTab]);
+
+    // Handle combine action (glue two selected objects)
+    const handleCombineSelected = useCallback(() => {
+        if (!sceneManagerRef.current || selectedObjectIds.length < 2) {
+            showNotification('warning', 'Select at least 2 objects to combine');
+            return;
+        }
+        const idA = selectedObjectIds[0];
+        const idB = selectedObjectIds[1];
+        const resultId = sceneManagerRef.current.combineObjects(idA, idB);
+        if (resultId !== null) {
+            useAppStore.getState().removeObject(idB);
+            showNotification('success', 'Objects combined successfully');
+        }
+    }, [selectedObjectIds]);
 
     // Handle view mode change
     const handleViewModeChange = (mode: ViewMode) => {
@@ -274,6 +299,18 @@ const Builder: React.FC = () => {
         showNotification('success', `Deleted ${count} object(s)`);
         setStatusMessage(`Deleted ${count} object(s)`);
     }, [selectedObjectIds]);
+
+    // Keyboard shortcut for delete
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+                handleDeleteSelected();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleDeleteSelected]);
 
     // Show notification
     const showNotification = (type: NotificationType, message: string) => {
@@ -315,6 +352,18 @@ const Builder: React.FC = () => {
                 // Reset transform
                 sceneManagerRef.current.resetSelectedObjectTransform();
                 showNotification('success', 'Transform reset');
+                break;
+
+            case 'combine':
+                handleCombineSelected();
+                break;
+
+            case 'boolean_union':
+            case 'boolean_difference':
+            case 'boolean_intersect':
+                // For now, map boolean operations to combine (geometry merge)
+                // True CSG boolean requires a library like three-bvh-csg
+                handleCombineSelected();
                 break;
 
             default:
@@ -451,6 +500,18 @@ const Builder: React.FC = () => {
                         </button>
                     )}
 
+                    {/* Combine/Glue Button - visible when 2+ objects selected */}
+                    {selectedObjectIds.length >= 2 && (
+                        <button
+                            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                            onClick={handleCombineSelected}
+                            title="Combine selected objects into one mesh"
+                        >
+                            <i className="fas fa-link"></i>
+                            Combine
+                        </button>
+                    )}
+
                     <button className="bg-richred hover:bg-richred-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all">
                         <i className="fas fa-cloud-upload-alt mr-2"></i>Export
                     </button>
@@ -556,7 +617,12 @@ const Builder: React.FC = () => {
                                 {activeTab === 'physics' && <PhysicsPanel />}
 
                                 {/* Sculpt Panel */}
-                                {activeTab === 'sculpt' && <SculptPanel />}
+                                {activeTab === 'sculpt' && (
+                                    <SculptPanel
+                                        onBrushChange={handleSculptBrushChange}
+                                        onSettingChange={handleSculptSettingChange}
+                                    />
+                                )}
 
                                 {/* Scene Panel */}
                                 {activeTab === 'scene' && <ScenePanel />}
@@ -686,8 +752,7 @@ const Builder: React.FC = () => {
             <AIGenerationModal 
                 isOpen={isAIModalOpen}
                 onClose={() => setIsAIModalOpen(false)}
-                mode={aiMode}
-                onModelGenerated={handleAIModelGenerated}
+                onPointsGenerated={handlePointsGenerated}
             />
         </div>
     );

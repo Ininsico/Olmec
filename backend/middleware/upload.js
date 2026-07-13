@@ -19,17 +19,16 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
     fileFilter: (req, file, cb) => {
-        if (file.fieldname === 'thumbnail' || file.fieldname === 'photo') {
-            const filetypes = /jpeg|jpg|png|gif/;
+        if (file.fieldname === 'thumbnail' || file.fieldname === 'photo' || file.fieldname === 'image') {
+            const filetypes = /jpeg|jpg|png|gif|webp/;
             const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
             const mimetype = filetypes.test(file.mimetype);
-
             if (mimetype && extname) {
                 return cb(null, true);
             } else {
-                cb(new Error('Images only!'));
+                cb(new Error('Images only (jpeg, jpg, png, gif, webp)!'));
             }
         } else if (file.fieldname === 'sceneFile') {
             if (file.mimetype === 'application/json' || path.extname(file.originalname).toLowerCase() === '.json') {
@@ -38,7 +37,7 @@ const upload = multer({
                 cb(new Error('JSON files only!'));
             }
         } else {
-            cb(new Error('Invalid file type'));
+            cb(null, true); // Allow unknown fields through
         }
     }
 });

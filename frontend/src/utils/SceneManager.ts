@@ -36,6 +36,11 @@ export class SceneManager {
     selectionBox: THREE.Box3Helper | null = null;
     isTransformDragging: boolean = false;
 
+    // Sculpting
+    isSculptMode: boolean = false;
+    isSculpting: boolean = false;
+    brushPreview: THREE.Mesh | null = null;
+
     stats = { triangles: 0, vertices: 0 };
 
     // Callbacks
@@ -128,6 +133,19 @@ export class SceneManager {
         this.geometryAnalysisTool = new GeometryAnalysisTool(this.scene);
         this.sculptManager = new SculptManager();
 
+        // Brush preview sphere
+        const brushGeo = new THREE.SphereGeometry(1, 16, 16);
+        const brushMat = new THREE.MeshBasicMaterial({
+            color: 0xff4444,
+            transparent: true,
+            opacity: 0.25,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+        this.brushPreview = new THREE.Mesh(brushGeo, brushMat);
+        this.brushPreview.visible = false;
+        this.scene.add(this.brushPreview);
+
         // 7. Helpers
         this.gridHelper = new THREE.GridHelper(20, 20, 0x888888, 0x444444);
         this.scene.add(this.gridHelper);
@@ -142,6 +160,8 @@ export class SceneManager {
         // 9. Event Listeners
         window.addEventListener('resize', this.handleResize.bind(this));
         this.canvas.addEventListener('pointerdown', this.handlePointerDown.bind(this));
+        this.canvas.addEventListener('pointermove', this.handlePointerMove.bind(this));
+        this.canvas.addEventListener('pointerup', this.handlePointerUp.bind(this));
 
         console.log('✅ SceneManager Rebuilt & Initialized');
     }
@@ -160,35 +180,55 @@ export class SceneManager {
 
     // ================= interaction =================
 
-    private handlePointerDown(event: PointerEvent) {
-        if (this.isTransformDragging) return;
-
-        // Calculate mouse position
+    private updateMouse(event: PointerEvent): THREE.Vector3 | null {
         const rect = this.canvas.getBoundingClientRect();
         this.mouse.x = ((event.clientX - rect.left) / this.canvas.clientWidth) * 2 - 1;
         this.mouse.y = -((event.clientY - rect.top) / this.canvas.clientHeight) * 2 + 1;
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+
+        const objectsToCheck = Array.from(this.objects.values());
+        const intersects = this.raycaster.intersectObjects(objectsToCheck, false);
+        if (intersects.length > 0) {
+            return intersects[0].point.clone();
+        }
+        return null;
+    }
+
+    private handlePointerDown(event: PointerEvent) {
+        if (this.isTransformDragging) return;
+
+        this.updateMouse(event);
 
         // 1. Check active tools first (Measure/Annotate)
         if (this.measureTool.isActive()) {
-            this.raycaster.setFromCamera(this.mouse, this.camera);
-            const intersects = this.raycaster.intersectObjects(Array.from(this.objects.values()));
-            if (intersects.length > 0) {
-                this.measureTool.handleClick(intersects[0].point);
+            const hitPoint = this.updateMouse(event);
+            if (hitPoint) {
+                this.measureTool.handleClick(hitPoint);
             }
             return;
         }
 
         if (this.annotationTool.isActive()) {
-            this.raycaster.setFromCamera(this.mouse, this.camera);
-            const intersects = this.raycaster.intersectObjects(Array.from(this.objects.values()));
-            if (intersects.length > 0) {
-                this.annotationTool.handleClick(intersects[0].point);
+            const hitPoint = this.updateMouse(event);
+            if (hitPoint) {
+                this.annotationTool.handleClick(hitPoint);
             }
             return;
         }
 
-        this.raycaster.setFromCamera(this.mouse, this.camera);
+        // 2. Sculpt mode
+        if (this.isSculptMode && this.selectedObject instanceof THREE.Mesh) {
+            const hitPoint = this.updateMouse(event);
+            if (hitPoint) {
+                this.isSculpting = true;
+                this.sculptManager.startSession(this.selectedObject);
+                this.sculptManager.startStroke(hitPoint, new THREE.Vector3(0, 1, 0));
+                this.sculptManager.applyBrush(hitPoint, new THREE.Vector3(0, 1, 0));
+            }
+            return;
+        }
 
+        // 3. Default: selection
         const objectsToCheck = Array.from(this.objects.values());
         const intersects = this.raycaster.intersectObjects(objectsToCheck, false);
 
@@ -197,8 +237,189 @@ export class SceneManager {
             this.selectObject(hit.userData.id);
         } else {
             console.log('Clicked background - Selection retained');
-            // Background click does NOT clear selection
         }
+    }
+
+    private handlePointerMove(event: PointerEvent) {
+        if (this.isSculptMode && this.isSculpting && this.selectedObject instanceof THREE.Mesh) {
+            const hitPoint = this.updateMouse(event);
+            if (hitPoint) {
+                this.sculptManager.continueStroke(hitPoint, new THREE.Vector3(0, 1, 0));
+            }
+            return;
+        }
+
+        // Show brush preview when in sculpt mode
+        if (this.isSculptMode && this.brushPreview) {
+            const hitPoint = this.updateMouse(event);
+            if (hitPoint) {
+                this.brushPreview.position.copy(hitPoint);
+                this.brushPreview.visible = true;
+                const radius = this.sculptManager.brush.settings.radius;
+                this.brushPreview.scale.set(radius, radius, radius);
+            } else {
+                this.brushPreview.visible = false;
+            }
+        }
+    }
+
+    private handlePointerUp(_event: PointerEvent) {
+        if (this.isSculpting) {
+            this.sculptManager.endStroke();
+            this.sculptManager.endSession();
+            this.isSculpting = false;
+        }
+    }
+
+    // Sculpt mode control
+    enterSculptMode(): void {
+        this.isSculptMode = true;
+        if (this.brushPreview) this.brushPreview.visible = true;
+        this.controls.enabled = false;
+    }
+
+    exitSculptMode(): void {
+        this.isSculptMode = false;
+        this.isSculpting = false;
+        if (this.brushPreview) this.brushPreview.visible = false;
+        this.controls.enabled = true;
+        this.sculptManager.endSession();
+    }
+
+    setSculptBrush(type: string): void {
+        this.sculptManager.setBrushType(type as any);
+    }
+
+    setSculptSetting(setting: string, value: any): void {
+        switch (setting) {
+            case 'radius':
+                this.sculptManager.setBrushRadius(value);
+                break;
+            case 'strength':
+                this.sculptManager.setBrushStrength(value);
+                break;
+            case 'falloff':
+                this.sculptManager.setBrushFalloff(value);
+                break;
+            case 'dyntopo':
+                this.sculptManager.setDyntopo(value);
+                break;
+            case 'symmetry_x':
+                this.sculptManager.setSymmetry('x', value);
+                break;
+            case 'symmetry_y':
+                this.sculptManager.setSymmetry('y', value);
+                break;
+            case 'symmetry_z':
+                this.sculptManager.setSymmetry('z', value);
+                break;
+        }
+    }
+
+    /**
+     * Combine two objects into a single mesh (glue)
+     */
+    combineObjects(idA: number, idB: number): number | null {
+        const objA = this.objects.get(idA);
+        const objB = this.objects.get(idB);
+
+        if (!objA || !objB) {
+            console.warn('One or both objects not found for combine');
+            return null;
+        }
+
+        const meshA = objA instanceof THREE.Mesh ? objA : this.findMeshChild(objA);
+        const meshB = objB instanceof THREE.Mesh ? objB : this.findMeshChild(objB);
+
+        if (!meshA || !meshB) {
+            console.warn('Both objects must be meshes to combine');
+            return null;
+        }
+
+        // Clone geometries so we don't mutate originals
+        const geoA = meshA.geometry.clone();
+        const geoB = meshB.geometry.clone();
+
+        // Ensure both are indexed
+        const idxA = geoA.index ? geoA.index.array : null;
+        const idxB = geoB.index ? geoB.index.array : null;
+
+        const posA = geoA.attributes.position.array as Float32Array;
+        const posB = geoB.attributes.position.array as Float32Array;
+
+        const vertexCountA = posA.length / 3;
+
+        // Combine positions
+        const combinedPos = new Float32Array(posA.length + posB.length);
+        combinedPos.set(posA);
+        combinedPos.set(posB, posA.length);
+
+        // Combine indices (offset B's indices by vertexCountA)
+        let combinedIdx: Uint16Array | Uint32Array | null = null;
+        if (idxA || idxB) {
+            const idxArrA = idxA ? Array.from(idxA) : Array.from({ length: posA.length / 3 }, (_, i) => i);
+            const idxArrB = idxB ? Array.from(idxB) : Array.from({ length: posB.length / 3 }, (_, i) => i);
+            const offsetIdxB = idxArrB.map(i => i + vertexCountA);
+            const totalIdx = [...idxArrA, ...offsetIdxB];
+            const isLarge = Math.max(...totalIdx) > 65535;
+            combinedIdx = isLarge ? new Uint32Array(totalIdx) : new Uint16Array(totalIdx);
+        }
+
+        // Combine normals
+        const combinedNorm = new Float32Array((posA.length + posB.length));
+        if (geoA.attributes.normal && geoB.attributes.normal) {
+            combinedNorm.set(geoA.attributes.normal.array as Float32Array);
+            combinedNorm.set(geoB.attributes.normal.array as Float32Array, posA.length);
+        }
+
+        const newGeo = new THREE.BufferGeometry();
+        newGeo.setAttribute('position', new THREE.BufferAttribute(combinedPos, 3));
+        if (combinedIdx) newGeo.setIndex(new THREE.BufferAttribute(combinedIdx, 1));
+        if (geoA.attributes.normal && geoB.attributes.normal) {
+            newGeo.setAttribute('normal', new THREE.BufferAttribute(combinedNorm, 3));
+        }
+        newGeo.computeVertexNormals();
+
+        // Use material from first object
+        const material = (meshA.material instanceof THREE.Material)
+            ? meshA.material.clone()
+            : new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.5, metalness: 0.1 });
+
+        const combinedMesh = new THREE.Mesh(newGeo, material);
+        // Use the ID from the first object
+        combinedMesh.userData.id = idA;
+        combinedMesh.name = `combined_${idA}_${idB}`;
+        combinedMesh.castShadow = true;
+        combinedMesh.receiveShadow = true;
+
+        // Get world positions to center the result
+        const worldPosA = new THREE.Vector3();
+        objA.getWorldPosition(worldPosA);
+        combinedMesh.position.copy(worldPosA);
+
+        // Replace object A with combined mesh
+        this.scene.remove(objA);
+        this.scene.remove(objB);
+        this.objects.delete(idA);
+        this.objects.delete(idB);
+
+        this.scene.add(combinedMesh);
+        this.objects.set(idA, combinedMesh);
+        this.selectObject(idA);
+
+        console.log(`✅ Combined objects ${idA} and ${idB}`);
+        return idA;
+    }
+
+    private findMeshChild(obj: THREE.Object3D): THREE.Mesh | null {
+        if (obj instanceof THREE.Mesh) return obj;
+        let result: THREE.Mesh | null = null;
+        obj.traverse((child) => {
+            if (child instanceof THREE.Mesh && !result) {
+                result = child;
+            }
+        });
+        return result;
     }
 
     // ================= API =================
@@ -218,6 +439,80 @@ export class SceneManager {
 
         // IMMEDIATE AUTO SELECT
         this.selectObject(objData.id);
+    }
+
+    createContourFromPoints(id: number, points: Float32Array, name: string, zScale: number = 1): THREE.Line {
+        const positions = new Float32Array(points.length)
+        for (let i = 0; i < points.length; i += 3) {
+            const u = points[i] - 0.5
+            const v = -(points[i + 1] - 0.5)
+            const z = points[i + 2] * zScale
+            positions[i] = u * 10
+            positions[i + 1] = v * 10
+            positions[i + 2] = z * 5
+        }
+
+        const geom = new THREE.BufferGeometry()
+        geom.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+
+        const mat = new THREE.LineBasicMaterial({ color: 0xdc2626, linewidth: 2 })
+        const line = new THREE.Line(geom, mat)
+        line.userData.id = id
+        line.name = name
+
+        this.scene.add(line)
+        this.objects.set(id, line)
+        this.selectObject(id)
+        return line
+    }
+
+    createPointsFromGrid(id: number, points: Float32Array, name: string, gridX: number, gridY: number): THREE.Mesh {
+        const positions = new Float32Array(points.length)
+        const colors = new Float32Array(points.length)
+        for (let i = 0; i < points.length; i += 3) {
+            const u = points[i] - 0.5
+            const v = -(points[i + 1] - 0.5)
+            const z = points[i + 2]
+            positions[i] = u * 10
+            positions[i + 1] = v * 10
+            positions[i + 2] = z * 5
+            colors[i] = 1
+            colors[i + 1] = 1 - z
+            colors[i + 2] = 1 - z
+        }
+
+        const geom = new THREE.BufferGeometry()
+        geom.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+        geom.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+
+        const indices: number[] = []
+        for (let gy = 0; gy < gridY - 1; gy++) {
+            for (let gx = 0; gx < gridX - 1; gx++) {
+                const a = gy * gridX + gx
+                const b = gy * gridX + gx + 1
+                const c = (gy + 1) * gridX + gx
+                const d = (gy + 1) * gridX + gx + 1
+                indices.push(a, b, c, b, d, c)
+            }
+        }
+        geom.setIndex(indices)
+        geom.computeVertexNormals()
+
+        const mat = new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            side: THREE.DoubleSide,
+            roughness: 0.5,
+            metalness: 0.1,
+            wireframe: false,
+        })
+        const mesh = new THREE.Mesh(geom, mat)
+        mesh.userData.id = id
+        mesh.name = name
+
+        this.scene.add(mesh)
+        this.objects.set(id, mesh)
+        this.selectObject(id)
+        return mesh
     }
 
     async loadAIModel(id: number, url: string, name: string): Promise<void> {

@@ -38,7 +38,6 @@ app.use('/api', require('./routes/userRoutes'));
 app.use('/api', require('./routes/modelRoutes'));
 app.use('/api', require('./routes/emailRoutes'));
 app.use('/api/scene', require('./routes/sceneRoutes'));
-app.use('/api/ai', require('./routes/aiRoutes'));
 
 // Global Error Handler
 app.use((err, req, res, next) => {
